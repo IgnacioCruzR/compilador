@@ -1,24 +1,36 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
-char* yytext;
-void yyerror(const char* s) { fprintf(stderr, "Error: %s\n", s); }
+#include <string.h>
+
+int yylex(void);
+void yyerror(const char* s) {
+    fprintf(stderr, "Error: %s\n", s);
+}
 %}
 
 %union {
     char* str;
 }
 
-%token <str> STRING
-%token PRINT LPAREN RPAREN
+%token ENTERO DECIMAL CADENA PUNTOYCOMA
+%token <str> ID
+%type <str> declaracion
 %start programa
 
 %%
 programa:
-      instruccion
+      lista_decl { printf("Programa aceptado.\n"); }
     ;
 
-instruccion:
-      PRINT LPAREN STRING RPAREN { printf(">> %s\n", $3); }
+lista_decl:
+      lista_decl declaracion
+    | declaracion
+    ;
+
+declaracion:
+      ENTERO ID PUNTOYCOMA   { printf("Declaración de entero: %s\n", $2); free($2); }
+    | DECIMAL ID PUNTOYCOMA  { printf("Declaración de decimal: %s\n", $2); free($2); }
+    | CADENA ID PUNTOYCOMA   { printf("Declaración de cadena: %s\n", $2); free($2); }
     ;
 %%
