@@ -1,5 +1,5 @@
 entero edad;
-decimal peso;
-edad = 1 + 2 * 3;
-edad = (1 + 2) * 3;
-peso = (50.5 - 10.5) / 2 + 1.0;
+leer(edad);
+edad = 10 + 5;
+imprimir(edad);
+imprimir("La edad fue ingresada");

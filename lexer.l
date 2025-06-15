@@ -29,17 +29,21 @@
                         return NENTERO;
                      }
 
+"leer"                 return LEER;
+"imprimir"             return IMPRIMIR;
+
 [a-zA-Z_][a-zA-Z0-9_]* {
                         yylval.str = strdup(yytext);
                         return ID;
                      }
-"+"                   return SUMA;
-"-"                   return RESTA;
-"*"                   return MULT;
-"/"                   return DIV;
-"("                   return LPAREN;
-")"                   return RPAREN;
-.                     ;
+
+"("                    return LPAREN;
+")"                    return RPAREN;
+"+"                    return SUMA;
+"-"                    return RESTA;
+"*"                    return MULT;
+"/"                    return DIV;
+.                      ; 
 %%
 
 int yywrap() { return 1; }

@@ -68,7 +68,9 @@ extern int yydebug;
     MULT = 269,                    /* MULT  */
     DIV = 270,                     /* DIV  */
     LPAREN = 271,                  /* LPAREN  */
-    RPAREN = 272                   /* RPAREN  */
+    RPAREN = 272,                  /* RPAREN  */
+    LEER = 273,                    /* LEER  */
+    IMPRIMIR = 274                 /* IMPRIMIR  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -81,7 +83,7 @@ union YYSTYPE
 
     char* str;
 
-#line 85 "parser.tab.h"
+#line 87 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

@@ -19,6 +19,8 @@ void yyerror(const char* s) {
 %token ENTERO DECIMAL CADENA PUNTOYCOMA IGUAL
 %token <str> NENTERO NDECIMAL CADENA_LITERAL ID
 %token SUMA RESTA MULT DIV LPAREN RPAREN
+%token LEER
+%token IMPRIMIR
 %type <str> declaracion
 %type <str> expresion
 %start programa
@@ -38,6 +40,8 @@ lista_sentencias:
 sentencia:
       declaracion
     | asignacion
+    | entrada
+    | salida
     ;
 
 declaracion:
@@ -51,6 +55,22 @@ asignacion:
     | ID IGUAL NDECIMAL PUNTOYCOMA        { printf("%s = %s (decimal)\n", $1, $3); free($1); free($3); }
     | ID IGUAL CADENA_LITERAL PUNTOYCOMA  { printf("%s = %s (cadena)\n", $1, $3); free($1); free($3); }
     | ID IGUAL expresion PUNTOYCOMA { printf("%s = %s\n", $1, $3); free($1); free($3); }
+    ;
+entrada:
+      LEER LPAREN ID RPAREN PUNTOYCOMA {
+          printf("Leer variable: %s\n", $3);
+          free($3);
+      }
+    ;
+salida:
+      IMPRIMIR LPAREN ID RPAREN PUNTOYCOMA {
+          printf("Imprimir variable: %s\n", $3);
+          free($3);
+      }
+    | IMPRIMIR LPAREN CADENA_LITERAL RPAREN PUNTOYCOMA {
+          printf("Imprimir cadena: %s\n", $3);
+          free($3);
+      }
     ;
 expresion:
       NENTERO                   { $$ = $1; }
@@ -79,6 +99,6 @@ expresion:
           $$ = buffer;
           free($1); free($3);
       }
-      | LPAREN expresion RPAREN { $$ = $2; }
+    | LPAREN expresion RPAREN { $$ = $2; }
     ;   
 %%
