@@ -3,29 +3,41 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+
 int yylex(void);
 void yyerror(const char* s) {
     fprintf(stderr, "Error: %s\n", s);
 }
 %}
 
+
 %union {
     char* str;
 }
 
-%token ENTERO DECIMAL CADENA PUNTOYCOMA
-%token <str> ID
+%token ENTERO DECIMAL CADENA PUNTOYCOMA IGUAL
+%token <str> NENTERO NDECIMAL CADENA_LITERAL ID
+%token SUMA RESTA MULT DIV LPAREN RPAREN
 %type <str> declaracion
+%type <str> expresion
 %start programa
+%left SUMA RESTA
+%left MULT DIV
 
 %%
 programa:
-      lista_decl { printf("Programa aceptado.\n"); }
+      lista_sentencias { printf("Programa aceptado.\n"); }
     ;
 
-lista_decl:
-      lista_decl declaracion
-    | declaracion
+lista_sentencias:
+      lista_sentencias sentencia
+    | sentencia
+    ;
+
+sentencia:
+      declaracion
+    | asignacion
     ;
 
 declaracion:
@@ -33,4 +45,40 @@ declaracion:
     | DECIMAL ID PUNTOYCOMA  { printf("Declaración de decimal: %s\n", $2); free($2); }
     | CADENA ID PUNTOYCOMA   { printf("Declaración de cadena: %s\n", $2); free($2); }
     ;
+
+asignacion:
+      ID IGUAL NENTERO PUNTOYCOMA         { printf("%s = %s (entero)\n", $1, $3); free($1); free($3); }
+    | ID IGUAL NDECIMAL PUNTOYCOMA        { printf("%s = %s (decimal)\n", $1, $3); free($1); free($3); }
+    | ID IGUAL CADENA_LITERAL PUNTOYCOMA  { printf("%s = %s (cadena)\n", $1, $3); free($1); free($3); }
+    | ID IGUAL expresion PUNTOYCOMA { printf("%s = %s\n", $1, $3); free($1); free($3); }
+    ;
+expresion:
+      NENTERO                   { $$ = $1; }
+    | NDECIMAL                  { $$ = $1; }
+    | expresion SUMA expresion  { 
+          char* buffer = malloc(strlen($1) + strlen($3) + 5);
+          sprintf(buffer, "(%s+%s)", $1, $3);
+          $$ = buffer;
+          free($1); free($3);
+      }
+    | expresion RESTA expresion {
+          char* buffer = malloc(strlen($1) + strlen($3) + 5);
+          sprintf(buffer, "(%s-%s)", $1, $3);
+          $$ = buffer;
+          free($1); free($3);
+      }
+    | expresion MULT expresion {
+          char* buffer = malloc(strlen($1) + strlen($3) + 5);
+          sprintf(buffer, "(%s*%s)", $1, $3);
+          $$ = buffer;
+          free($1); free($3);
+      }
+    | expresion DIV expresion  {
+          char* buffer = malloc(strlen($1) + strlen($3) + 5);
+          sprintf(buffer, "(%s/%s)", $1, $3);
+          $$ = buffer;
+          free($1); free($3);
+      }
+      | LPAREN expresion RPAREN { $$ = $2; }
+    ;   
 %%

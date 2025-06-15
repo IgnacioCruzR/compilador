@@ -58,7 +58,17 @@ extern int yydebug;
     DECIMAL = 259,                 /* DECIMAL  */
     CADENA = 260,                  /* CADENA  */
     PUNTOYCOMA = 261,              /* PUNTOYCOMA  */
-    ID = 262                       /* ID  */
+    IGUAL = 262,                   /* IGUAL  */
+    NENTERO = 263,                 /* NENTERO  */
+    NDECIMAL = 264,                /* NDECIMAL  */
+    CADENA_LITERAL = 265,          /* CADENA_LITERAL  */
+    ID = 266,                      /* ID  */
+    SUMA = 267,                    /* SUMA  */
+    RESTA = 268,                   /* RESTA  */
+    MULT = 269,                    /* MULT  */
+    DIV = 270,                     /* DIV  */
+    LPAREN = 271,                  /* LPAREN  */
+    RPAREN = 272                   /* RPAREN  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -67,11 +77,11 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 12 "parser.y"
+#line 15 "parser.y"
 
     char* str;
 
-#line 75 "parser.tab.h"
+#line 85 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

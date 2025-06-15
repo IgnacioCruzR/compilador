@@ -1,3 +1,5 @@
 entero edad;
 decimal peso;
-cadena nombre;
+edad = 1 + 2 * 3;
+edad = (1 + 2) * 3;
+peso = (50.5 - 10.5) / 2 + 1.0;
