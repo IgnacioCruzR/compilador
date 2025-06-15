@@ -1,5 +1,9 @@
 entero edad;
 leer(edad);
-edad = 10 + 5;
-imprimir(edad);
-imprimir("La edad fue ingresada");
+edad = 25;
+if (edad > 18) {
+    imprimir("Mayor de edad");
+}
+if (edad == 25) {
+    imprimir("Exactamente 25");
+}

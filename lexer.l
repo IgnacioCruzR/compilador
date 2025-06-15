@@ -11,13 +11,34 @@
 "decimal"             return DECIMAL;
 "cadena"              return CADENA;
 
+"if"                  return IF;
+"else"                return ELSE;
+"while"               return WHILE;
+"leer"                return LEER;
+"imprimir"            return IMPRIMIR;
+
+"=="                  return IGUAL_IGUAL;
+"!="                  return DIFERENTE;
+"<="                  return MENOR_IGUAL;
+">="                  return MAYOR_IGUAL;
+"<"                   return MENOR;
+">"                   return MAYOR;
+
+"("                   return LPAREN;
+")"                   return RPAREN;
+"{"                   return LLAVE_IZQ;
+"}"                   return LLAVE_DER;
 "="                   return IGUAL;
 ";"                   return PUNTOYCOMA;
+"+"                   return SUMA;
+"-"                   return RESTA;
+"*"                   return MULT;
+"/"                   return DIV;
 
 \"[^\"]*\"            {
-                        yylval.str = strdup(yytext);
-                        return CADENA_LITERAL;
-                     }
+    yylval.str = strdup(yytext);
+    return CADENA_LITERAL;
+}
 
 [0-9]+"."[0-9]+       {
                         yylval.str = strdup(yytext);
@@ -29,21 +50,15 @@
                         return NENTERO;
                      }
 
-"leer"                 return LEER;
-"imprimir"             return IMPRIMIR;
 
 [a-zA-Z_][a-zA-Z0-9_]* {
-                        yylval.str = strdup(yytext);
-                        return ID;
-                     }
+    yylval.str = strdup(yytext);
+    return ID;
+}
 
-"("                    return LPAREN;
-")"                    return RPAREN;
-"+"                    return SUMA;
-"-"                    return RESTA;
-"*"                    return MULT;
-"/"                    return DIV;
-.                      ; 
+
+
+.                     ;
 %%
 
 int yywrap() { return 1; }

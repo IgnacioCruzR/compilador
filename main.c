@@ -1,9 +1,7 @@
 #include <stdio.h>
 
-extern int yyparse();
-//extern int yydebug;
+extern int yyparse(void);
 
-int main() {
-    //yydebug = 1;
+int main(void) {
     return yyparse();
 }

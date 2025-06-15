@@ -70,7 +70,18 @@ extern int yydebug;
     LPAREN = 271,                  /* LPAREN  */
     RPAREN = 272,                  /* RPAREN  */
     LEER = 273,                    /* LEER  */
-    IMPRIMIR = 274                 /* IMPRIMIR  */
+    IMPRIMIR = 274,                /* IMPRIMIR  */
+    IF = 275,                      /* IF  */
+    ELSE = 276,                    /* ELSE  */
+    WHILE = 277,                   /* WHILE  */
+    LLAVE_IZQ = 278,               /* LLAVE_IZQ  */
+    LLAVE_DER = 279,               /* LLAVE_DER  */
+    IGUAL_IGUAL = 280,             /* IGUAL_IGUAL  */
+    DIFERENTE = 281,               /* DIFERENTE  */
+    MENOR = 282,                   /* MENOR  */
+    MAYOR = 283,                   /* MAYOR  */
+    MENOR_IGUAL = 284,             /* MENOR_IGUAL  */
+    MAYOR_IGUAL = 285              /* MAYOR_IGUAL  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -83,7 +94,7 @@ union YYSTYPE
 
     char* str;
 
-#line 87 "parser.tab.h"
+#line 98 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

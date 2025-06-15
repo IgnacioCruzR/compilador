@@ -21,8 +21,11 @@ void yyerror(const char* s) {
 %token SUMA RESTA MULT DIV LPAREN RPAREN
 %token LEER
 %token IMPRIMIR
+%token IF ELSE WHILE
+%token LLAVE_IZQ LLAVE_DER
+%token IGUAL_IGUAL DIFERENTE MENOR MAYOR MENOR_IGUAL MAYOR_IGUAL
 %type <str> declaracion
-%type <str> expresion
+%type <str> expresion condicion
 %start programa
 %left SUMA RESTA
 %left MULT DIV
@@ -35,6 +38,7 @@ programa:
 lista_sentencias:
       lista_sentencias sentencia
     | sentencia
+    | /* vacío */
     ;
 
 sentencia:
@@ -42,6 +46,7 @@ sentencia:
     | asignacion
     | entrada
     | salida
+    | sentencia_if
     ;
 
 declaracion:
@@ -72,9 +77,28 @@ salida:
           free($3);
       }
     ;
+
+condicion:
+      expresion IGUAL_IGUAL expresion   { $$ = strdup("=="); }
+    | expresion DIFERENTE expresion     { $$ = strdup("!="); }
+    | expresion MENOR expresion         { $$ = strdup("<"); }
+    | expresion MAYOR expresion         { $$ = strdup(">"); }
+    | expresion MENOR_IGUAL expresion   { $$ = strdup("<="); }
+    | expresion MAYOR_IGUAL expresion   { $$ = strdup(">="); }
+    ;
+
+sentencia_if:
+      IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER {
+          printf("Condición if con operador: %s\n", $3);
+          free($3);
+      }
+    ;
+
+
 expresion:
       NENTERO                   { $$ = $1; }
     | NDECIMAL                  { $$ = $1; }
+    | ID                        { $$ = $1; }
     | expresion SUMA expresion  { 
           char* buffer = malloc(strlen($1) + strlen($3) + 5);
           sprintf(buffer, "(%s+%s)", $1, $3);
