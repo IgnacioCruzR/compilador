@@ -3,8 +3,6 @@
 extern int yyparse();
 
 int main() {
-    printf("Compilando...\n");
-    yyparse();
-    printf("Compilación terminada\n");
-    return 0;
+    return yyparse();
 }
+
