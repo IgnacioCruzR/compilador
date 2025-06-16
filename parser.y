@@ -11,7 +11,7 @@ typedef enum {
     TIPO_ENTERO,
     TIPO_DECIMAL,
     TIPO_CADENA,
-    TIPO_INDEFINIDO // Para valores de retorno
+    TIPO_INDEFINIDO
 } TipoDato;
 
 typedef struct {
@@ -26,22 +26,6 @@ typedef struct {
 
 Variable tabla[MAX_VARS];
 int num_vars = 0;
-
-// --- Prototipos de las funciones del Ejecutor AST ---
-struct NodoAST;
-void ejecutar_ast(struct NodoAST* nodo);
-bool evaluar_condicion(struct NodoAST* nodo);
-
-typedef struct {
-    TipoDato tipo;
-    union {
-        int   val_entero;
-        float val_decimal;
-        char* val_cadena;
-    } valor;
-} ValorEvaluado;
-
-ValorEvaluado evaluar_expresion(struct NodoAST* nodo);
 
 // --- Funciones de la Tabla de Símbolos ---
 int buscar_variable(const char* nombre) {
@@ -176,6 +160,12 @@ NodoAST* crear_nodo_if(NodoAST* condicion, NodoAST* bloque_then, NodoAST* bloque
     nodo->datos.sentencia_if.bloque_else = bloque_else;
     return nodo;
 }
+NodoAST* crear_nodo_while(NodoAST* condicion, NodoAST* bloque, int linenum) {
+    NodoAST* nodo = crear_nodo(NODO_WHILE, linenum);
+    nodo->datos.sentencia_while.condicion = condicion;
+    nodo->datos.sentencia_while.bloque = bloque;
+    return nodo;
+}
 NodoAST* crear_nodo_expresion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der, int linenum) {
     NodoAST* nodo = crear_nodo(NODO_EXPRESION_BINARIA, linenum);
     nodo->datos.expresion_binaria.operador = op;
@@ -210,12 +200,7 @@ NodoAST* crear_nodo_condicion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der
     nodo->datos.condicion_binaria.derecha = der;
     return nodo;
 }
-NodoAST* crear_nodo_while(NodoAST* condicion, NodoAST* bloque, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_WHILE, linenum);
-    nodo->datos.sentencia_while.condicion = condicion;
-    nodo->datos.sentencia_while.bloque = bloque;
-    return nodo;
-}
+
 
 // --- Variables Globales ---
 NodoAST* g_ast_raiz = NULL;
@@ -336,11 +321,12 @@ sentencia_if:
         $$ = crear_nodo_if($3, $6, NULL, yylineno);
     }
     ;
+
 sentencia_while:
     WHILE LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER {
         $$ = crear_nodo_while($3, $6, yylineno);
     }
-    ;    
+    ;
 
 expresion:
     NENTERO               { $$ = crear_nodo_entero(atoi($1), yylineno); free($1); }
@@ -354,184 +340,162 @@ expresion:
     ;
 %%
 
-/* --- Código C Adicional --- */
+/* --- SECCIÓN DE GENERACIÓN DE CÓDIGO --- */
 
-void ejecutar_ast(NodoAST* nodo) {
+// Prototipo de la función auxiliar para expresiones
+void generar_codigo_expresion(NodoAST* nodo, FILE* f_salida);
+
+// Función principal que recorre el árbol para generar código
+void generar_codigo(NodoAST* nodo, FILE* f_salida) {
     if (!nodo) return;
+
     switch (nodo->tipo_nodo) {
         case NODO_PROGRAMA:
-            ejecutar_ast(nodo->datos.programa.lista_sentencias_hijo);
+            generar_codigo(nodo->datos.programa.lista_sentencias_hijo, f_salida);
             break;
+
         case NODO_LISTA_SENTENCIAS:
-            ejecutar_ast(nodo->datos.lista_sentencias.sentencia);
-            ejecutar_ast(nodo->datos.lista_sentencias.siguiente);
+            generar_codigo(nodo->datos.lista_sentencias.sentencia, f_salida);
+            generar_codigo(nodo->datos.lista_sentencias.siguiente, f_salida);
             break;
+
         case NODO_DECLARACION:
-            break;
-        case NODO_ASIGNACION: {
-            ValorEvaluado resultado = evaluar_expresion(nodo->datos.asignacion.expresion_derecha);
-            int idx = buscar_variable(nodo->datos.asignacion.id_nombre);
-            if (idx != -1 && tabla[idx].tipo == resultado.tipo) {
-                switch(resultado.tipo) {
-                    case TIPO_ENTERO: tabla[idx].valor.val_entero = resultado.valor.val_entero; break;
-                    case TIPO_DECIMAL: tabla[idx].valor.val_decimal = resultado.valor.val_decimal; break;
-                    case TIPO_CADENA:
-                        if (tabla[idx].valor.val_cadena) free(tabla[idx].valor.val_cadena);
-                        tabla[idx].valor.val_cadena = strdup(resultado.valor.val_cadena);
-                        break;
-                    default: break;
-                }
-            } else {
-                 fprintf(stderr, "Línea %d: Error semántico: Incompatibilidad de tipos en la asignación para la variable '%s'.\n", nodo->linenum, nodo->datos.asignacion.id_nombre);
-                 exit(1);
+            switch (nodo->datos.declaracion.tipo_dato) {
+                case TIPO_ENTERO:
+                    fprintf(f_salida, "    int %s = 0;\n", nodo->datos.declaracion.id_nombre);
+                    break;
+                case TIPO_CADENA:
+                    fprintf(f_salida, "    char* %s = NULL;\n", nodo->datos.declaracion.id_nombre);
+                    break;
+                default: break;
             }
             break;
-        }
-        case NODO_SALIDA:
+
+        case NODO_ASIGNACION:
+            // Para la asignación de cadenas, necesitamos usar strcpy
+            if (nodo->datos.asignacion.tipo_asignacion_esperado == TIPO_CADENA) {
+                fprintf(f_salida, "    %s = ", nodo->datos.asignacion.id_nombre);
+                generar_codigo_expresion(nodo->datos.asignacion.expresion_derecha, f_salida);
+                fprintf(f_salida, ";\n");
+            } else {
+                fprintf(f_salida, "    %s = ", nodo->datos.asignacion.id_nombre);
+                generar_codigo_expresion(nodo->datos.asignacion.expresion_derecha, f_salida);
+                fprintf(f_salida, ";\n");
+            }
+            break;
+
+        case NODO_SALIDA: // 'imprimir'
             if (nodo->datos.salida.cadena_literal) {
-                printf("%s\n", nodo->datos.salida.cadena_literal);
+                fprintf(f_salida, "    printf(\"%s\\n\");\n", nodo->datos.salida.cadena_literal);
             } else {
                 int idx = buscar_variable(nodo->datos.salida.id_nombre);
                 if (idx != -1) {
-                    switch(tabla[idx].tipo) {
-                        case TIPO_ENTERO: printf("%d\n", tabla[idx].valor.val_entero); break;
-                        case TIPO_DECIMAL: printf("%f\n", tabla[idx].valor.val_decimal); break;
-                        case TIPO_CADENA: printf("%s\n", tabla[idx].valor.val_cadena); break;
-                        default: break;
+                    if (tabla[idx].tipo == TIPO_ENTERO) {
+                        fprintf(f_salida, "    printf(\"%%d\\n\", %s);\n", nodo->datos.salida.id_nombre);
+                    } else if (tabla[idx].tipo == TIPO_CADENA) {
+                        fprintf(f_salida, "    printf(\"%%s\\n\", %s);\n", nodo->datos.salida.id_nombre);
                     }
                 }
             }
             break;
-        case NODO_ENTRADA: {
+        
+        case NODO_ENTRADA: // 'leer' - Esto es complejo de traducir directamente a C simple
+            fprintf(f_salida, "    {\n");
+            fprintf(f_salida, "        char buffer_lectura[256];\n");
+            fprintf(f_salida, "        fgets(buffer_lectura, 256, stdin);\n");
             int idx = buscar_variable(nodo->datos.entrada.id_nombre);
-            if (idx != -1) {
-                printf("Ingrese valor para %s (%s): ", tabla[idx].nombre,
-                    tabla[idx].tipo == TIPO_ENTERO ? "entero" : (tabla[idx].tipo == TIPO_DECIMAL ? "decimal" : "cadena"));
-                fgets(buffer_fgets, sizeof(buffer_fgets), stdin);
-                buffer_fgets[strcspn(buffer_fgets, "\n")] = 0;
-                switch(tabla[idx].tipo) {
-                    case TIPO_ENTERO: tabla[idx].valor.val_entero = atoi(buffer_fgets); break;
-                    case TIPO_DECIMAL: tabla[idx].valor.val_decimal = atof(buffer_fgets); break;
-                    case TIPO_CADENA:
-                        if(tabla[idx].valor.val_cadena) free(tabla[idx].valor.val_cadena);
-                        tabla[idx].valor.val_cadena = strdup(buffer_fgets);
-                        break;
-                    default: break;
+             if (idx != -1) {
+                    if (tabla[idx].tipo == TIPO_ENTERO) {
+                        fprintf(f_salida, "        sscanf(buffer_lectura, \"%%d\", &%s);\n", nodo->datos.entrada.id_nombre);
+                    } else if (tabla[idx].tipo == TIPO_CADENA) {
+                        fprintf(f_salida, "        buffer_lectura[strcspn(buffer_lectura, \"\\n\")] = 0;\n");
+                        fprintf(f_salida, "        %s = strdup(buffer_lectura);\n", nodo->datos.entrada.id_nombre);
+                    }
                 }
-            }
+            fprintf(f_salida, "    }\n");
             break;
-        }
+
         case NODO_IF:
-            if (evaluar_condicion(nodo->datos.sentencia_if.condicion)) {
-                ejecutar_ast(nodo->datos.sentencia_if.bloque_then);
-            } else if (nodo->datos.sentencia_if.bloque_else) {
-                ejecutar_ast(nodo->datos.sentencia_if.bloque_else);
+            fprintf(f_salida, "    if (");
+            generar_codigo_expresion(nodo->datos.sentencia_if.condicion, f_salida);
+            fprintf(f_salida, ") {\n");
+            generar_codigo(nodo->datos.sentencia_if.bloque_then, f_salida);
+            fprintf(f_salida, "    }\n");
+            if (nodo->datos.sentencia_if.bloque_else) {
+                fprintf(f_salida, "    else {\n");
+                generar_codigo(nodo->datos.sentencia_if.bloque_else, f_salida);
+                fprintf(f_salida, "    }\n");
             }
             break;
+
         case NODO_WHILE:
-            // Mientras la condición sea verdadera, ejecuta el bloque de código repetidamente.
-            while (evaluar_condicion(nodo->datos.sentencia_while.condicion)) {
-                ejecutar_ast(nodo->datos.sentencia_while.bloque);
-            }
-            break;
-                
+             fprintf(f_salida, "    while (");
+             generar_codigo_expresion(nodo->datos.sentencia_while.condicion, f_salida);
+             fprintf(f_salida, ") {\n");
+             generar_codigo(nodo->datos.sentencia_while.bloque, f_salida);
+             fprintf(f_salida, "    }\n");
+             break;
+        
         default:
-             fprintf(stderr, "Línea %d: Error interno del compilador: Nodo de sentencia desconocido.\n", nodo->linenum);
-             exit(1);
-             
+            break;
     }
 }
 
-ValorEvaluado evaluar_expresion(NodoAST* nodo) {
-    ValorEvaluado resultado;
-    resultado.tipo = TIPO_INDEFINIDO;
-    if (!nodo) {
-         fprintf(stderr, "Error semántico: Expresión nula.\n");
-         exit(1);
-    }
+// Función auxiliar para generar el código de las expresiones y condiciones
+void generar_codigo_expresion(NodoAST* nodo, FILE* f_salida) {
+    if (!nodo) return;
+
     switch (nodo->tipo_nodo) {
         case NODO_EXPRESION_ENTERO:
-            resultado.tipo = TIPO_ENTERO;
-            resultado.valor.val_entero = nodo->datos.entero.valor_entero;
+            fprintf(f_salida, "%d", nodo->datos.entero.valor_entero);
             break;
-        case NODO_EXPRESION_DECIMAL:
-            resultado.tipo = TIPO_DECIMAL;
-            resultado.valor.val_decimal = nodo->datos.decimal.valor_decimal;
+        case NODO_EXPRESION_ID:
+            fprintf(f_salida, "%s", nodo->datos.id_expr.id_nombre);
             break;
         case NODO_EXPRESION_CADENA_LITERAL:
-            resultado.tipo = TIPO_CADENA;
-            resultado.valor.val_cadena = nodo->datos.cadena_literal.valor_cadena;
+            fprintf(f_salida, "\"%s\"", nodo->datos.cadena_literal.valor_cadena);
             break;
-        case NODO_EXPRESION_ID: {
-            int idx = buscar_variable(nodo->datos.id_expr.id_nombre);
-            if (idx != -1) {
-                resultado.tipo = tabla[idx].tipo;
-                 switch(resultado.tipo) {
-                    case TIPO_ENTERO: resultado.valor.val_entero = tabla[idx].valor.val_entero; break;
-                    case TIPO_DECIMAL: resultado.valor.val_decimal = tabla[idx].valor.val_decimal; break;
-                    case TIPO_CADENA: resultado.valor.val_cadena = tabla[idx].valor.val_cadena; break;
-                    default: break;
-                }
-            } else {
-                fprintf(stderr, "Línea %d: Error semántico: Variable '%s' no definida.\n",
-                        nodo->linenum, nodo->datos.id_expr.id_nombre);
-                exit(1);
+
+        case NODO_EXPRESION_BINARIA: {
+            // --- CORRECCIÓN: Usamos 'expresion_binaria' ---
+            char op_char = ' ';
+            switch (nodo->datos.expresion_binaria.operador) {
+                case OP_SUMA: op_char = '+'; break;
+                case OP_RESTA: op_char = '-'; break;
+                case OP_MULT: op_char = '*'; break;
+                case OP_DIV: op_char = '/'; break;
+                default: break; // Los operadores de comparación no deberían estar aquí
             }
+            fprintf(f_salida, "(");
+            generar_codigo_expresion(nodo->datos.expresion_binaria.izquierda, f_salida);
+            fprintf(f_salida, " %c ", op_char);
+            generar_codigo_expresion(nodo->datos.expresion_binaria.derecha, f_salida);
+            fprintf(f_salida, ")");
             break;
         }
-        case NODO_EXPRESION_BINARIA: {
-            ValorEvaluado izq = evaluar_expresion(nodo->datos.expresion_binaria.izquierda);
-            ValorEvaluado der = evaluar_expresion(nodo->datos.expresion_binaria.derecha);
-            if (izq.tipo == TIPO_ENTERO && der.tipo == TIPO_ENTERO) {
-                resultado.tipo = TIPO_ENTERO;
-                switch (nodo->datos.expresion_binaria.operador) {
-                    case OP_SUMA: resultado.valor.val_entero = izq.valor.val_entero + der.valor.val_entero; break;
-                    case OP_RESTA: resultado.valor.val_entero = izq.valor.val_entero - der.valor.val_entero; break;
-                    case OP_MULT: resultado.valor.val_entero = izq.valor.val_entero * der.valor.val_entero; break;
-                    case OP_DIV:
-                        if (der.valor.val_entero == 0) {
-                            fprintf(stderr, "Línea %d: Error en ejecución: División por cero.\n", nodo->linenum);
-                            exit(1);
-                        }
-                        resultado.valor.val_entero = izq.valor.val_entero / der.valor.val_entero;
-                        break;
-                    default:
-                        fprintf(stderr, "Línea %d: Error interno: Operador binario desconocido.\n", nodo->linenum);
-                        exit(1);
-                }
-            } else {
-                fprintf(stderr, "Línea %d: Error de tipos en expresión. Solo se soportan operaciones entre enteros.\n", nodo->linenum);
-                exit(1);
+
+        case NODO_CONDICION_BINARIA: {
+            // --- CORRECCIÓN: Usamos 'condicion_binaria' ---
+            char* op_str = "";
+            switch (nodo->datos.condicion_binaria.operador) {
+                case OP_IGUAL_IGUAL: op_str = "=="; break;
+                case OP_DIFERENTE:   op_str = "!="; break;
+                case OP_MENOR:       op_str = "<";  break;
+                case OP_MAYOR:       op_str = ">";  break;
+                case OP_MENOR_IGUAL: op_str = "<="; break;
+                case OP_MAYOR_IGUAL: op_str = ">="; break;
+                default: break; // Los operadores aritméticos no deberían estar aquí
             }
+            fprintf(f_salida, "(");
+            generar_codigo_expresion(nodo->datos.condicion_binaria.izquierda, f_salida);
+            fprintf(f_salida, " %s ", op_str);
+            generar_codigo_expresion(nodo->datos.condicion_binaria.derecha, f_salida);
+            fprintf(f_salida, ")");
             break;
         }
         default:
-             fprintf(stderr, "Línea %d: Error interno: Nodo de expresión desconocido.\n", nodo->linenum);
-             exit(1);
+            break;
     }
-    return resultado;
-}
-
-bool evaluar_condicion(NodoAST* nodo) {
-    ValorEvaluado izq = evaluar_expresion(nodo->datos.condicion_binaria.izquierda);
-    ValorEvaluado der = evaluar_expresion(nodo->datos.condicion_binaria.derecha);
-    if (izq.tipo == TIPO_ENTERO && der.tipo == TIPO_ENTERO) {
-        switch (nodo->datos.condicion_binaria.operador) {
-            case OP_IGUAL_IGUAL: return izq.valor.val_entero == der.valor.val_entero;
-            case OP_DIFERENTE:   return izq.valor.val_entero != der.valor.val_entero;
-            case OP_MENOR:       return izq.valor.val_entero <  der.valor.val_entero;
-            case OP_MAYOR:       return izq.valor.val_entero >  der.valor.val_entero;
-            case OP_MENOR_IGUAL: return izq.valor.val_entero <= der.valor.val_entero;
-            case OP_MAYOR_IGUAL: return izq.valor.val_entero >= der.valor.val_entero;
-            default: 
-                fprintf(stderr, "Línea %d: Error interno: Operador de condición desconocido.\n", nodo->linenum);
-                exit(1);
-        }
-    } else {
-        fprintf(stderr, "Línea %d: Error de tipos en condición. Solo se soportan comparaciones de enteros.\n", nodo->linenum);
-        exit(1);
-    }
-    return false;
 }
 
 void yyerror(const char* s) {

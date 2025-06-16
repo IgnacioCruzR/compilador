@@ -1,7 +1,7 @@
 // --- Calculadora en Mi Lenguaje ---
-// Demostración para el taller.
+// Demostración para el taller del 17/06.
 
-// Variables globales que usaremos como "parámetros" y "valores de retorno"
+// Variables que simulan los "parámetros" y "retornos" de nuestras funciones.
 entero op1;
 entero op2;
 entero resultado;
@@ -9,7 +9,7 @@ cadena operacion;
 
 // --- "Función" para Sumar ---
 // Simula: funcion_sumar(100, 50)
-imprimir("--- Probando funcion_sumar ---");
+imprimir("--- Probando funcion_sumar(100, 50) ---");
 op1 = 100;
 op2 = 50;
 operacion = "Suma";
@@ -17,43 +17,42 @@ resultado = op1 + op2;
 imprimir("Operacion:");
 imprimir(operacion);
 imprimir("Resultado:");
-imprimir(resultado); // Debe ser 150
+imprimir(resultado);
 imprimir("");
 
-// --- "Función" para Restar ---
-// Simula: funcion_restar(100, 30)
-imprimir("--- Probando funcion_restar ---");
-op1 = 100;
-op2 = 30;
-operacion = "Resta";
-resultado = op1 - op2;
+// --- "Función" para Multiplicar ---
+// Simula: funcion_multiplicar(20, 5)
+imprimir("--- Probando funcion_multiplicar(20, 5) ---");
+op1 = 20;
+op2 = 5;
+operacion = "Multiplicacion";
+resultado = op1 * op2;
 imprimir("Operacion:");
 imprimir(operacion);
 imprimir("Resultado:");
-imprimir(resultado); // Debe ser 70
+imprimir(resultado);
 imprimir("");
 
 // --- "Función" para Exponente usando WHILE ---
-// Simula: funcion_exponente(2, 5) => 2^5
-imprimir("--- Probando funcion_exponente con bucle WHILE ---");
-op1 = 2; // Base
-op2 = 5; // Exponente
-operacion = "Exponente (2^5)";
+// Simula: funcion_exponente(3, 4) => 3^4
+imprimir("--- Probando funcion_exponente(3, 4) con bucle WHILE ---");
+op1 = 3; // Base
+op2 = 4; // Exponente
+operacion = "Exponente (3^4)";
 
-// Lógica del bucle
-resultado = 1;      // El resultado empieza en 1
+resultado = 1;
 entero contador;
-contador = op2;     // Usamos un contador para el bucle
+contador = op2;
 
 while (contador > 0) {
-    resultado = resultado * op1; // resultado = resultado * base
-    contador = contador - 1;     // Decrementamos el contador
+    resultado = resultado * op1;
+    contador = contador - 1;
 }
 
 imprimir("Operacion:");
 imprimir(operacion);
 imprimir("Resultado:");
-imprimir(resultado); // Debe ser 32
+imprimir(resultado);
 imprimir("");
 
 imprimir("--- Calculadora finalizada con éxito ---");
