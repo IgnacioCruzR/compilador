@@ -28,12 +28,10 @@ Variable tabla[MAX_VARS];
 int num_vars = 0;
 
 // --- Prototipos de las funciones del Ejecutor AST ---
-// (Los necesitamos aquí porque se llaman de forma cruzada)
-struct NodoAST; // Declaración adelantada de la estructura del nodo
+struct NodoAST;
 void ejecutar_ast(struct NodoAST* nodo);
 bool evaluar_condicion(struct NodoAST* nodo);
 
-// --> NUEVO: Estructura para manejar los resultados de las expresiones
 typedef struct {
     TipoDato tipo;
     union {
@@ -44,7 +42,6 @@ typedef struct {
 } ValorEvaluado;
 
 ValorEvaluado evaluar_expresion(struct NodoAST* nodo);
-
 
 // --- Funciones de la Tabla de Símbolos ---
 int buscar_variable(const char* nombre) {
@@ -75,12 +72,22 @@ void declarar_variable(const char* nombre, TipoDato tipo) {
     num_vars++;
 }
 
-
-// --- Estructuras y Creación de Nodos AST (sin cambios) ---
+// --- Estructuras AST ---
 typedef enum {
-    NODO_PROGRAMA, NODO_LISTA_SENTENCIAS, NODO_DECLARACION, NODO_ASIGNACION,
-    NODO_ENTRADA, NODO_SALIDA, NODO_IF, NODO_EXPRESION_BINARIA, NODO_EXPRESION_ENTERO,
-    NODO_EXPRESION_DECIMAL, NODO_EXPRESION_ID, NODO_EXPRESION_CADENA_LITERAL, NODO_CONDICION_BINARIA,
+    NODO_PROGRAMA,
+    NODO_LISTA_SENTENCIAS,
+    NODO_DECLARACION,
+    NODO_ASIGNACION,
+    NODO_ENTRADA,
+    NODO_SALIDA,
+    NODO_IF,
+    NODO_WHILE,
+    NODO_EXPRESION_BINARIA,
+    NODO_EXPRESION_ENTERO,
+    NODO_EXPRESION_DECIMAL,
+    NODO_EXPRESION_ID,
+    NODO_EXPRESION_CADENA_LITERAL,
+    NODO_CONDICION_BINARIA
 } TipoNodoAST;
 
 typedef enum {
@@ -105,22 +112,23 @@ typedef struct NodoAST {
         struct { float valor_decimal; } decimal;
         struct { char *id_nombre; } id_expr;
         struct { char *valor_cadena; } cadena_literal;
+        struct { struct NodoAST *condicion; struct NodoAST *bloque; } sentencia_while;
     } datos;
 } NodoAST;
-extern int yylineno;
+
+// Declaraciones de variables globales que Flex/Bison usan
 extern int yylineno;
 extern char* yytext;
 
+// --- Funciones para Crear Nodos AST ---
 NodoAST* crear_nodo(TipoNodoAST tipo, int linenum) {
     NodoAST* nodo = (NodoAST*)malloc(sizeof(NodoAST));
     if (nodo == NULL) { yyerror("Memoria insuficiente para nodo AST."); exit(1); }
     nodo->tipo_nodo = tipo;
-    nodo->linenum = linenum; // Guardamos el número de línea
+    nodo->linenum = linenum;
     memset(&nodo->datos, 0, sizeof(nodo->datos));
     return nodo;
 }
-
-// Todas las funciones auxiliares ahora deben aceptar y pasar el número de línea
 NodoAST* crear_nodo_programa(NodoAST* lista_sentencias, int linenum) {
     NodoAST* nodo = crear_nodo(NODO_PROGRAMA, linenum);
     nodo->datos.programa.lista_sentencias_hijo = lista_sentencias;
@@ -136,7 +144,7 @@ NodoAST* crear_nodo_declaracion(TipoDato tipo, char* id_nombre, int linenum) {
     NodoAST* nodo = crear_nodo(NODO_DECLARACION, linenum);
     nodo->datos.declaracion.tipo_dato = tipo;
     nodo->datos.declaracion.id_nombre = strdup(id_nombre);
-    declarar_variable(id_nombre, tipo); // La declaración en tabla de símbolos sigue igual
+    declarar_variable(id_nombre, tipo);
     return nodo;
 }
 NodoAST* crear_nodo_asignacion(char* id_nombre, NodoAST* expr_derecha, TipoDato tipo_asignacion_esperado, int linenum) {
@@ -202,16 +210,21 @@ NodoAST* crear_nodo_condicion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der
     nodo->datos.condicion_binaria.derecha = der;
     return nodo;
 }
+NodoAST* crear_nodo_while(NodoAST* condicion, NodoAST* bloque, int linenum) {
+    NodoAST* nodo = crear_nodo(NODO_WHILE, linenum);
+    nodo->datos.sentencia_while.condicion = condicion;
+    nodo->datos.sentencia_while.bloque = bloque;
+    return nodo;
+}
 
 // --- Variables Globales ---
 NodoAST* g_ast_raiz = NULL;
 char buffer_fgets[256];
 int yylex(void);
 
-
 %}
 
-// --- Declaraciones de Bison (sin cambios) ---
+/* --- Declaraciones de Bison --- */
 %union {
     char* str;
     int   num_int;
@@ -222,25 +235,25 @@ int yylex(void);
 %token <str> NENTERO NDECIMAL CADENA_LITERAL ID
 %token SUMA RESTA MULT DIV LPAREN RPAREN
 %token LEER IMPRIMIR
-%token IF ELSE
-%token WHILE
+%token IF ELSE WHILE
 %token LLAVE_IZQ LLAVE_DER
 %token IGUAL_IGUAL DIFERENTE MENOR MAYOR MENOR_IGUAL MAYOR_IGUAL
 
 %precedence ELSE
-%type <nodo_ast> programa lista_sentencias sentencia declaracion asignacion entrada salida sentencia_if expresion condicion
+%type <nodo_ast> programa lista_sentencias sentencia declaracion asignacion entrada salida sentencia_if expresion condicion sentencia_while
 %start programa
 %left SUMA RESTA
 %left MULT DIV
 
 %%
 
+/* --- Reglas de Gramática --- */
+
 programa:
     lista_sentencias {
-          $$ = crear_nodo_programa($1, yylineno);
-          g_ast_raiz = $$;
-          fprintf(stderr, "[DEBUG-PARSER] AST Raíz asignado. Puntero: %p\n", g_ast_raiz);
-        }
+        $$ = crear_nodo_programa($1, yylineno);
+        g_ast_raiz = $$;
+    }
     ;
 
 lista_sentencias:
@@ -255,18 +268,22 @@ lista_sentencias:
     }
     | %empty { $$ = NULL; }
     ;
+
 sentencia:
     declaracion { $$ = $1; }
     | asignacion  { $$ = $1; }
     | entrada     { $$ = $1; }
     | salida      { $$ = $1; }
     | sentencia_if{ $$ = $1; }
+    | sentencia_while { $$ = $1; }
     ;
+
 declaracion:
     ENTERO ID PUNTOYCOMA  { $$ = crear_nodo_declaracion(TIPO_ENTERO, $2, yylineno); free($2); }
     | DECIMAL ID PUNTOYCOMA { $$ = crear_nodo_declaracion(TIPO_DECIMAL, $2, yylineno); free($2); }
     | CADENA ID PUNTOYCOMA  { $$ = crear_nodo_declaracion(TIPO_CADENA, $2, yylineno); free($2); }
     ;
+
 asignacion:
     ID IGUAL expresion PUNTOYCOMA {
         int idx = buscar_variable($1);
@@ -291,13 +308,16 @@ asignacion:
         free($1); free($3);
     }
     ;
+
 entrada:
     LEER LPAREN ID RPAREN PUNTOYCOMA { $$ = crear_nodo_entrada($3, yylineno); free($3); }
     ;
+
 salida:
     IMPRIMIR LPAREN ID RPAREN PUNTOYCOMA { $$ = crear_nodo_salida_id($3, yylineno); free($3); }
     | IMPRIMIR LPAREN CADENA_LITERAL RPAREN PUNTOYCOMA { $$ = crear_nodo_salida_literal($3, yylineno); free($3); }
     ;
+
 condicion:
     expresion IGUAL_IGUAL expresion   { $$ = crear_nodo_condicion_binaria(OP_IGUAL_IGUAL, $1, $3, yylineno); }
     | expresion DIFERENTE expresion     { $$ = crear_nodo_condicion_binaria(OP_DIFERENTE, $1, $3, yylineno); }
@@ -306,15 +326,22 @@ condicion:
     | expresion MENOR_IGUAL expresion   { $$ = crear_nodo_condicion_binaria(OP_MENOR_IGUAL, $1, $3, yylineno); }
     | expresion MAYOR_IGUAL expresion   { $$ = crear_nodo_condicion_binaria(OP_MAYOR_IGUAL, $1, $3, yylineno); }
     ;
+
 sentencia_if:
     IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER
     ELSE LLAVE_IZQ lista_sentencias LLAVE_DER {
         $$ = crear_nodo_if($3, $6, $10, yylineno);
     }
-  | IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER %prec ELSE {
+    | IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER %prec ELSE {
         $$ = crear_nodo_if($3, $6, NULL, yylineno);
     }
     ;
+sentencia_while:
+    WHILE LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER {
+        $$ = crear_nodo_while($3, $6, yylineno);
+    }
+    ;    
+
 expresion:
     NENTERO               { $$ = crear_nodo_entero(atoi($1), yylineno); free($1); }
     | NDECIMAL            { $$ = crear_nodo_decimal(atof($1), yylineno); free($1); }
@@ -327,41 +354,28 @@ expresion:
     ;
 %%
 
-// --- CÓDIGO FINAL: EJECUTOR DEL AST ---
+/* --- Código C Adicional --- */
 
 void ejecutar_ast(NodoAST* nodo) {
-    // Si el nodo es nulo (ej. un bloque 'else' vacío), no hacemos nada.
     if (!nodo) return;
-
-    // Usamos un switch para realizar una acción diferente según el tipo de nodo.
     switch (nodo->tipo_nodo) {
         case NODO_PROGRAMA:
-            // Si es el nodo raíz, simplemente ejecutamos su hijo (la lista de sentencias).
             ejecutar_ast(nodo->datos.programa.lista_sentencias_hijo);
             break;
-
         case NODO_LISTA_SENTENCIAS:
-            // Si es una lista, ejecutamos la sentencia actual y luego la siguiente.
             ejecutar_ast(nodo->datos.lista_sentencias.sentencia);
             ejecutar_ast(nodo->datos.lista_sentencias.siguiente);
             break;
-
         case NODO_DECLARACION:
-            // La declaración en la tabla de símbolos ya se hizo durante el parseo.
-            // En la fase de ejecución, no necesitamos hacer nada más.
             break;
-
         case NODO_ASIGNACION: {
-            // Para asignar, primero evaluamos la expresión de la derecha.
             ValorEvaluado resultado = evaluar_expresion(nodo->datos.asignacion.expresion_derecha);
             int idx = buscar_variable(nodo->datos.asignacion.id_nombre);
-            
-            // Comprobación de tipos semántica.
             if (idx != -1 && tabla[idx].tipo == resultado.tipo) {
                 switch(resultado.tipo) {
                     case TIPO_ENTERO: tabla[idx].valor.val_entero = resultado.valor.val_entero; break;
                     case TIPO_DECIMAL: tabla[idx].valor.val_decimal = resultado.valor.val_decimal; break;
-                    case TIPO_CADENA: 
+                    case TIPO_CADENA:
                         if (tabla[idx].valor.val_cadena) free(tabla[idx].valor.val_cadena);
                         tabla[idx].valor.val_cadena = strdup(resultado.valor.val_cadena);
                         break;
@@ -373,14 +387,10 @@ void ejecutar_ast(NodoAST* nodo) {
             }
             break;
         }
-
         case NODO_SALIDA:
-            // Si el nodo es para imprimir, revisamos si es un literal o una variable.
             if (nodo->datos.salida.cadena_literal) {
-                // Imprime el literal directamente.
                 printf("%s\n", nodo->datos.salida.cadena_literal);
             } else {
-                // Busca la variable en la tabla de símbolos y la imprime según su tipo.
                 int idx = buscar_variable(nodo->datos.salida.id_nombre);
                 if (idx != -1) {
                     switch(tabla[idx].tipo) {
@@ -392,19 +402,17 @@ void ejecutar_ast(NodoAST* nodo) {
                 }
             }
             break;
-
         case NODO_ENTRADA: {
             int idx = buscar_variable(nodo->datos.entrada.id_nombre);
             if (idx != -1) {
-                printf("Ingrese valor para %s (%s): ", tabla[idx].nombre, 
+                printf("Ingrese valor para %s (%s): ", tabla[idx].nombre,
                     tabla[idx].tipo == TIPO_ENTERO ? "entero" : (tabla[idx].tipo == TIPO_DECIMAL ? "decimal" : "cadena"));
                 fgets(buffer_fgets, sizeof(buffer_fgets), stdin);
-                buffer_fgets[strcspn(buffer_fgets, "\n")] = 0; // Quita el salto de línea
-
+                buffer_fgets[strcspn(buffer_fgets, "\n")] = 0;
                 switch(tabla[idx].tipo) {
                     case TIPO_ENTERO: tabla[idx].valor.val_entero = atoi(buffer_fgets); break;
                     case TIPO_DECIMAL: tabla[idx].valor.val_decimal = atof(buffer_fgets); break;
-                    case TIPO_CADENA: 
+                    case TIPO_CADENA:
                         if(tabla[idx].valor.val_cadena) free(tabla[idx].valor.val_cadena);
                         tabla[idx].valor.val_cadena = strdup(buffer_fgets);
                         break;
@@ -413,33 +421,34 @@ void ejecutar_ast(NodoAST* nodo) {
             }
             break;
         }
-
         case NODO_IF:
-            // Para un 'if', primero evaluamos la condición.
             if (evaluar_condicion(nodo->datos.sentencia_if.condicion)) {
-                // Si es verdadera, ejecutamos el bloque 'then'.
                 ejecutar_ast(nodo->datos.sentencia_if.bloque_then);
             } else if (nodo->datos.sentencia_if.bloque_else) {
-                // Si es falsa y existe un bloque 'else', lo ejecutamos.
                 ejecutar_ast(nodo->datos.sentencia_if.bloque_else);
             }
             break;
-        
+        case NODO_WHILE:
+            // Mientras la condición sea verdadera, ejecuta el bloque de código repetidamente.
+            while (evaluar_condicion(nodo->datos.sentencia_while.condicion)) {
+                ejecutar_ast(nodo->datos.sentencia_while.bloque);
+            }
+            break;
+                
         default:
              fprintf(stderr, "Línea %d: Error interno del compilador: Nodo de sentencia desconocido.\n", nodo->linenum);
              exit(1);
+             
     }
 }
 
 ValorEvaluado evaluar_expresion(NodoAST* nodo) {
     ValorEvaluado resultado;
     resultado.tipo = TIPO_INDEFINIDO;
-
     if (!nodo) {
          fprintf(stderr, "Error semántico: Expresión nula.\n");
          exit(1);
     }
-
     switch (nodo->tipo_nodo) {
         case NODO_EXPRESION_ENTERO:
             resultado.tipo = TIPO_ENTERO;
@@ -464,7 +473,7 @@ ValorEvaluado evaluar_expresion(NodoAST* nodo) {
                     default: break;
                 }
             } else {
-                fprintf(stderr, "Línea %d: Error semántico: Variable '%s' no definida.\n", 
+                fprintf(stderr, "Línea %d: Error semántico: Variable '%s' no definida.\n",
                         nodo->linenum, nodo->datos.id_expr.id_nombre);
                 exit(1);
             }
@@ -473,20 +482,18 @@ ValorEvaluado evaluar_expresion(NodoAST* nodo) {
         case NODO_EXPRESION_BINARIA: {
             ValorEvaluado izq = evaluar_expresion(nodo->datos.expresion_binaria.izquierda);
             ValorEvaluado der = evaluar_expresion(nodo->datos.expresion_binaria.derecha);
-
-            // Simplificación: solo operamos con enteros por ahora.
             if (izq.tipo == TIPO_ENTERO && der.tipo == TIPO_ENTERO) {
                 resultado.tipo = TIPO_ENTERO;
                 switch (nodo->datos.expresion_binaria.operador) {
                     case OP_SUMA: resultado.valor.val_entero = izq.valor.val_entero + der.valor.val_entero; break;
                     case OP_RESTA: resultado.valor.val_entero = izq.valor.val_entero - der.valor.val_entero; break;
                     case OP_MULT: resultado.valor.val_entero = izq.valor.val_entero * der.valor.val_entero; break;
-                    case OP_DIV: 
-                        if (der.valor.val_entero == 0) { 
-                            fprintf(stderr, "Línea %d: Error en ejecución: División por cero.\n", nodo->linenum); 
-                            exit(1); 
+                    case OP_DIV:
+                        if (der.valor.val_entero == 0) {
+                            fprintf(stderr, "Línea %d: Error en ejecución: División por cero.\n", nodo->linenum);
+                            exit(1);
                         }
-                        resultado.valor.val_entero = izq.valor.val_entero / der.valor.val_entero; 
+                        resultado.valor.val_entero = izq.valor.val_entero / der.valor.val_entero;
                         break;
                     default:
                         fprintf(stderr, "Línea %d: Error interno: Operador binario desconocido.\n", nodo->linenum);
@@ -508,8 +515,6 @@ ValorEvaluado evaluar_expresion(NodoAST* nodo) {
 bool evaluar_condicion(NodoAST* nodo) {
     ValorEvaluado izq = evaluar_expresion(nodo->datos.condicion_binaria.izquierda);
     ValorEvaluado der = evaluar_expresion(nodo->datos.condicion_binaria.derecha);
-    
-    // Simplificación: solo comparamos enteros.
     if (izq.tipo == TIPO_ENTERO && der.tipo == TIPO_ENTERO) {
         switch (nodo->datos.condicion_binaria.operador) {
             case OP_IGUAL_IGUAL: return izq.valor.val_entero == der.valor.val_entero;
@@ -518,23 +523,21 @@ bool evaluar_condicion(NodoAST* nodo) {
             case OP_MAYOR:       return izq.valor.val_entero >  der.valor.val_entero;
             case OP_MENOR_IGUAL: return izq.valor.val_entero <= der.valor.val_entero;
             case OP_MAYOR_IGUAL: return izq.valor.val_entero >= der.valor.val_entero;
-            default: yyerror("Operador de condición desconocido."); exit(1);
+            default: 
+                fprintf(stderr, "Línea %d: Error interno: Operador de condición desconocido.\n", nodo->linenum);
+                exit(1);
         }
     } else {
-        yyerror("Error de tipos en condición. Solo se soportan comparaciones de enteros."); exit(1);
+        fprintf(stderr, "Línea %d: Error de tipos en condición. Solo se soportan comparaciones de enteros.\n", nodo->linenum);
+        exit(1);
     }
     return false;
 }
 
-
 void yyerror(const char* s) {
-    // Imprimimos un mensaje de error mucho más detallado, incluyendo
-    // el número de línea y el token que causó el problema.
     fprintf(stderr, "Error de sintaxis en la línea %d: Cerca del texto '%s'. Mensaje: %s\n",
             yylineno, yytext, s);
 }
-
-
 
 int yywrap() {
     return 1;
