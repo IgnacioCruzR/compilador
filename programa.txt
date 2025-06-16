@@ -1,9 +1,88 @@
-entero edad;
-leer(edad);
-edad = 25;
-if (edad > 18) {
-    imprimir("Mayor de edad");
+// Programa de prueba completo
+// Pone a prueba todas las características implementadas hasta ahora:
+// 1. Declaración, Asignación e Impresión de variables.
+// 2. Expresiones aritméticas con precedencia y paréntesis.
+// 3. Lectura de datos del usuario (leer).
+// 4. Lógica condicional (if, if-else, if anidados).
+
+imprimir("--- INICIO DE PRUEBAS DEL INTÉRPRETE ---");
+
+// --- 1. Pruebas de Declaración y Asignación ---
+imprimir("");
+imprimir("--- 1. Pruebas de Declaración, Asignación e Impresión ---");
+entero num1;
+entero num2;
+cadena mensaje;
+
+num1 = 100;
+num2 = 20;
+mensaje = "Pruebas superadas hasta ahora.";
+
+imprimir("El valor de num1 es:");
+imprimir(num1); // Debería imprimir 100
+imprimir("El valor de num2 es:");
+imprimir(num2); // Debería imprimir 20
+
+
+// --- 2. Pruebas de Expresiones Aritméticas ---
+imprimir("");
+imprimir("--- 2. Pruebas de Expresiones Aritméticas ---");
+entero resultado;
+
+resultado = num1 + num2; // 100 + 20 = 120
+imprimir("Prueba de Suma (100 + 20):");
+imprimir(resultado);
+
+resultado = num1 - num2 * 2; // 100 - 40 = 60 (Prueba de precedencia)
+imprimir("Prueba de Precedencia (100 - 20 * 2):");
+imprimir(resultado);
+
+resultado = (num1 / 5) + (num2 / 2); // (20) + (10) = 30 (Prueba de paréntesis)
+imprimir("Prueba de Paréntesis ((100/5) + (20/2)):");
+imprimir(resultado);
+
+
+// --- 3. Prueba de Entrada del Usuario ---
+imprimir("");
+imprimir("--- 3. Prueba de Entrada (leer) ---");
+entero valor_leido;
+imprimir("Por favor, ingresa el número 42 para la siguiente prueba:");
+leer(valor_leido);
+imprimir("El valor que ingresaste es:");
+imprimir(valor_leido);
+
+
+// --- 4. Pruebas de Lógica Condicional ---
+imprimir("");
+imprimir("--- 4. Pruebas de Lógica Condicional ---");
+
+imprimir("-> 4a. Prueba de IF-ELSE (debe ejecutar el bloque IF)");
+if (valor_leido == 42) {
+    imprimir("   CORRECTO: Se ejecutó el bloque IF como se esperaba.");
+} else {
+    imprimir("   ERROR: Se ejecutó el bloque ELSE, no debería.");
 }
-if (edad == 25) {
-    imprimir("Exactamente 25");
+
+imprimir("-> 4b. Prueba de IF-ELSE (debe ejecutar el bloque ELSE)");
+if (num1 == 999) {
+    imprimir("   ERROR: num1 no es 999, no debería entrar aquí.");
+} else {
+    imprimir("   CORRECTO: Se ejecutó el bloque ELSE como se esperaba.");
 }
+
+imprimir("-> 4c. Prueba de IF anidado (Dangling Else)");
+imprimir("   La condición externa (num1 > 0) es verdadera.");
+imprimir("   La condición interna (num2 > 100) es falsa.");
+imprimir("   El 'else' debe ejecutarse y pertenecer al IF interno.");
+
+if (num1 > 0)
+    if (num2 > 100) {
+        imprimir("   ERROR: El IF interno no debería ser verdadero.");
+    } else {
+        imprimir("   CORRECTO: El 'else' se asoció correctamente con el IF interno.");
+    }
+
+
+imprimir("");
+imprimir("--- FIN DE PRUEBAS ---");
+imprimir(mensaje); // Debería imprimir "Pruebas superadas hasta ahora.
