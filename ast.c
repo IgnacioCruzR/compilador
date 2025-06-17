@@ -12,7 +12,6 @@ NodoAST* g_ast_raiz = NULL;
 static NodoAST* crear_nodo(TipoNodoAST tipo) {
     NodoAST* nodo = (NodoAST*)malloc(sizeof(NodoAST));
     if (nodo == NULL) {
-        // En un programa real, yyerror sería ideal aquí, pero no está visible
         // desde este fichero si no se estructura de otra manera.
         fprintf(stderr, "Error: Memoria insuficiente para nodo AST.\n");
         exit(1);

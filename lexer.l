@@ -15,6 +15,8 @@
 "while" return WHILE;
 "leer" return LEER;
 "imprimir" return IMPRIMIR;
+"funcion" return FUNCION;
+"retornar" return RETORNAR;
 "==" return IGUAL_IGUAL;
 "!=" return DIFERENTE;
 "<=" return MENOR_IGUAL;
@@ -23,6 +25,7 @@
 ">" return MAYOR;
 "(" return LPAREN;
 ")" return RPAREN;
+"," return COMA;
 "{" return LLAVE_IZQ;
 "}" return LLAVE_DER;
 "=" return IGUAL;

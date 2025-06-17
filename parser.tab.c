@@ -67,7 +67,7 @@
 
 
 /* First part of user prologue.  */
-#line 1 "parser.y"
+#line 4 "parser.y"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -76,72 +76,24 @@
 
 #define MAX_VARS 100
 
-// --- Tabla de Símbolos y Tipos de Datos ---
+/* --- Definiciones de Tipos y Estructuras --- */
 typedef enum {
-    TIPO_ENTERO,
-    TIPO_DECIMAL,
-    TIPO_CADENA,
-    TIPO_INDEFINIDO
+    TIPO_ENTERO, TIPO_CADENA, TIPO_INDEFINIDO
 } TipoDato;
 
 typedef struct {
     char      nombre[32];
     TipoDato  tipo;
-    union {
-        int   val_entero;
-        float val_decimal;
-        char* val_cadena;
-    } valor;
 } Variable;
 
-Variable tabla[MAX_VARS];
-int num_vars = 0;
 
-// --- Funciones de la Tabla de Símbolos ---
-int buscar_variable(const char* nombre) {
-    for (int i = 0; i < num_vars; ++i)
-        if (strcmp(tabla[i].nombre, nombre) == 0)
-            return i;
-    return -1;
-}
 
-void yyerror(const char* s);
-
-void declarar_variable(const char* nombre, TipoDato tipo) {
-    if (buscar_variable(nombre) != -1) {
-        char err_msg[100];
-        sprintf(err_msg, "Variable '%s' ya declarada.", nombre);
-        yyerror(err_msg);
-        exit(1);
-    }
-    if (num_vars >= MAX_VARS) {
-        yyerror("Tabla de símbolos llena.");
-        exit(1);
-    }
-    strcpy(tabla[num_vars].nombre, nombre);
-    tabla[num_vars].tipo = tipo;
-    if (tipo == TIPO_ENTERO) tabla[num_vars].valor.val_entero = 0;
-    else if (tipo == TIPO_DECIMAL) tabla[num_vars].valor.val_decimal = 0.0f;
-    else if (tipo == TIPO_CADENA) tabla[num_vars].valor.val_cadena = NULL;
-    num_vars++;
-}
-
-// --- Estructuras AST ---
 typedef enum {
-    NODO_PROGRAMA,
-    NODO_LISTA_SENTENCIAS,
-    NODO_DECLARACION,
-    NODO_ASIGNACION,
-    NODO_ENTRADA,
-    NODO_SALIDA,
-    NODO_IF,
-    NODO_WHILE,
-    NODO_EXPRESION_BINARIA,
-    NODO_EXPRESION_ENTERO,
-    NODO_EXPRESION_DECIMAL,
-    NODO_EXPRESION_ID,
-    NODO_EXPRESION_CADENA_LITERAL,
-    NODO_CONDICION_BINARIA
+    NODO_PROGRAMA, NODO_LISTA_SENTENCIAS, NODO_DECLARACION, NODO_ASIGNACION,
+    NODO_SALIDA, NODO_IF, NODO_WHILE, NODO_EXPRESION_BINARIA,
+    NODO_EXPRESION_ENTERO, NODO_EXPRESION_ID, NODO_EXPRESION_CADENA_LITERAL,
+    NODO_CONDICION_BINARIA, NODO_DECLARACION_FUNCION, NODO_LLAMADA_FUNCION,
+    NODO_SENTENCIA_RETORNO, NODO_LISTA_ARGS
 } TipoNodoAST;
 
 typedef enum {
@@ -156,129 +108,55 @@ typedef struct NodoAST {
         struct { struct NodoAST *lista_sentencias_hijo; } programa;
         struct { struct NodoAST *sentencia; struct NodoAST *siguiente; } lista_sentencias;
         struct { TipoDato tipo_dato; char *id_nombre; } declaracion;
-        struct { char *id_nombre; struct NodoAST *expresion_derecha; TipoDato tipo_asignacion_esperado; } asignacion;
-        struct { char *id_nombre; } entrada;
-        struct { char *id_nombre; char *cadena_literal; } salida;
+        struct { char *id_nombre; struct NodoAST *expresion_derecha; } asignacion;
+        struct { struct NodoAST* expresion_salida; } salida;
         struct { struct NodoAST *condicion; struct NodoAST *bloque_then; struct NodoAST *bloque_else; } sentencia_if;
+        struct { struct NodoAST *condicion; struct NodoAST *bloque; } sentencia_while;
         struct { OperadorAST operador; struct NodoAST *izquierda; struct NodoAST *derecha; } expresion_binaria;
         struct { OperadorAST operador; struct NodoAST *izquierda; struct NodoAST *derecha; } condicion_binaria;
         struct { int valor_entero; } entero;
-        struct { float valor_decimal; } decimal;
         struct { char *id_nombre; } id_expr;
         struct { char *valor_cadena; } cadena_literal;
-        struct { struct NodoAST *condicion; struct NodoAST *bloque; } sentencia_while;
+        struct { char* nombre; struct NodoAST* params; struct NodoAST* cuerpo; } declaracion_funcion;
+        struct { char* nombre; struct NodoAST* args; } llamada_funcion;
+        struct { struct NodoAST* valor_retorno; } retorno;
+        struct { char* nombre_param; struct NodoAST* expresion_arg; struct NodoAST* siguiente; } lista_args;
     } datos;
 } NodoAST;
 
-// Declaraciones de variables globales que Flex/Bison usan
+Variable tabla[MAX_VARS];
+int num_vars = 0;
+NodoAST* g_ast_raiz = NULL;
+
+/* --- Prototipos de Funciones C --- */
+void yyerror(const char* s);
+int yylex(void);
+int buscar_variable(const char* nombre);
+NodoAST* crear_nodo(TipoNodoAST tipo, int linenum);
+NodoAST* crear_nodo_programa(NodoAST* lista, int linenum);
+NodoAST* crear_nodo_lista_sentencias(NodoAST* sentencia, NodoAST* siguiente, int linenum);
+NodoAST* crear_nodo_declaracion(TipoDato tipo, char* id, int linenum);
+NodoAST* crear_nodo_asignacion(char* id, NodoAST* expr, int linenum);
+NodoAST* crear_nodo_salida(NodoAST* expr, int linenum);
+NodoAST* crear_nodo_if(NodoAST* cond, NodoAST* then_b, NodoAST* else_b, int linenum);
+NodoAST* crear_nodo_while(NodoAST* cond, NodoAST* block, int linenum);
+NodoAST* crear_nodo_expresion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der, int linenum);
+NodoAST* crear_nodo_entero(int val, int linenum);
+NodoAST* crear_nodo_id_expresion(char* id, int linenum);
+NodoAST* crear_nodo_cadena_literal_expresion(char* val, int linenum);
+NodoAST* crear_nodo_condicion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der, int linenum);
+NodoAST* crear_nodo_declaracion_funcion(char* nombre, NodoAST* params, NodoAST* cuerpo, int linenum);
+NodoAST* crear_nodo_llamada_funcion(char* nombre, NodoAST* args, int linenum);
+NodoAST* crear_nodo_sentencia_retorno(NodoAST* valor, int linenum);
+NodoAST* crear_nodo_lista_args(char* nombre_param, NodoAST* expresion_arg, NodoAST* siguiente, int linenum);
+void generar_codigo(NodoAST* nodo, FILE* f_salida);
+
+// Declaración de variables externas que vienen del lexer
 extern int yylineno;
 extern char* yytext;
 
-// --- Funciones para Crear Nodos AST ---
-NodoAST* crear_nodo(TipoNodoAST tipo, int linenum) {
-    NodoAST* nodo = (NodoAST*)malloc(sizeof(NodoAST));
-    if (nodo == NULL) { yyerror("Memoria insuficiente para nodo AST."); exit(1); }
-    nodo->tipo_nodo = tipo;
-    nodo->linenum = linenum;
-    memset(&nodo->datos, 0, sizeof(nodo->datos));
-    return nodo;
-}
-NodoAST* crear_nodo_programa(NodoAST* lista_sentencias, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_PROGRAMA, linenum);
-    nodo->datos.programa.lista_sentencias_hijo = lista_sentencias;
-    return nodo;
-}
-NodoAST* crear_nodo_lista_sentencias(NodoAST* sentencia, NodoAST* siguiente, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_LISTA_SENTENCIAS, linenum);
-    nodo->datos.lista_sentencias.sentencia = sentencia;
-    nodo->datos.lista_sentencias.siguiente = siguiente;
-    return nodo;
-}
-NodoAST* crear_nodo_declaracion(TipoDato tipo, char* id_nombre, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_DECLARACION, linenum);
-    nodo->datos.declaracion.tipo_dato = tipo;
-    nodo->datos.declaracion.id_nombre = strdup(id_nombre);
-    declarar_variable(id_nombre, tipo);
-    return nodo;
-}
-NodoAST* crear_nodo_asignacion(char* id_nombre, NodoAST* expr_derecha, TipoDato tipo_asignacion_esperado, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_ASIGNACION, linenum);
-    nodo->datos.asignacion.id_nombre = strdup(id_nombre);
-    nodo->datos.asignacion.expresion_derecha = expr_derecha;
-    nodo->datos.asignacion.tipo_asignacion_esperado = tipo_asignacion_esperado;
-    return nodo;
-}
-NodoAST* crear_nodo_entrada(char* id_nombre, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_ENTRADA, linenum);
-    nodo->datos.entrada.id_nombre = strdup(id_nombre);
-    return nodo;
-}
-NodoAST* crear_nodo_salida_id(char* id_nombre, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_SALIDA, linenum);
-    nodo->datos.salida.id_nombre = strdup(id_nombre);
-    return nodo;
-}
-NodoAST* crear_nodo_salida_literal(char* cadena_literal, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_SALIDA, linenum);
-    nodo->datos.salida.cadena_literal = strdup(cadena_literal);
-    return nodo;
-}
-NodoAST* crear_nodo_if(NodoAST* condicion, NodoAST* bloque_then, NodoAST* bloque_else, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_IF, linenum);
-    nodo->datos.sentencia_if.condicion = condicion;
-    nodo->datos.sentencia_if.bloque_then = bloque_then;
-    nodo->datos.sentencia_if.bloque_else = bloque_else;
-    return nodo;
-}
-NodoAST* crear_nodo_while(NodoAST* condicion, NodoAST* bloque, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_WHILE, linenum);
-    nodo->datos.sentencia_while.condicion = condicion;
-    nodo->datos.sentencia_while.bloque = bloque;
-    return nodo;
-}
-NodoAST* crear_nodo_expresion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_EXPRESION_BINARIA, linenum);
-    nodo->datos.expresion_binaria.operador = op;
-    nodo->datos.expresion_binaria.izquierda = izq;
-    nodo->datos.expresion_binaria.derecha = der;
-    return nodo;
-}
-NodoAST* crear_nodo_entero(int valor, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_EXPRESION_ENTERO, linenum);
-    nodo->datos.entero.valor_entero = valor;
-    return nodo;
-}
-NodoAST* crear_nodo_decimal(float valor, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_EXPRESION_DECIMAL, linenum);
-    nodo->datos.decimal.valor_decimal = valor;
-    return nodo;
-}
-NodoAST* crear_nodo_id_expresion(char* id_nombre, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_EXPRESION_ID, linenum);
-    nodo->datos.id_expr.id_nombre = strdup(id_nombre);
-    return nodo;
-}
-NodoAST* crear_nodo_cadena_literal_expresion(char* valor_cadena, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_EXPRESION_CADENA_LITERAL, linenum);
-    nodo->datos.cadena_literal.valor_cadena = strdup(valor_cadena);
-    return nodo;
-}
-NodoAST* crear_nodo_condicion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der, int linenum) {
-    NodoAST* nodo = crear_nodo(NODO_CONDICION_BINARIA, linenum);
-    nodo->datos.condicion_binaria.operador = op;
-    nodo->datos.condicion_binaria.izquierda = izq;
-    nodo->datos.condicion_binaria.derecha = der;
-    return nodo;
-}
 
-
-// --- Variables Globales ---
-NodoAST* g_ast_raiz = NULL;
-char buffer_fgets[256];
-int yylex(void);
-
-
-#line 282 "parser.tab.c"
+#line 160 "parser.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -310,45 +188,52 @@ enum yysymbol_kind_t
   YYSYMBOL_YYerror = 1,                    /* error  */
   YYSYMBOL_YYUNDEF = 2,                    /* "invalid token"  */
   YYSYMBOL_ENTERO = 3,                     /* ENTERO  */
-  YYSYMBOL_DECIMAL = 4,                    /* DECIMAL  */
-  YYSYMBOL_CADENA = 5,                     /* CADENA  */
-  YYSYMBOL_PUNTOYCOMA = 6,                 /* PUNTOYCOMA  */
-  YYSYMBOL_IGUAL = 7,                      /* IGUAL  */
+  YYSYMBOL_CADENA = 4,                     /* CADENA  */
+  YYSYMBOL_PUNTOYCOMA = 5,                 /* PUNTOYCOMA  */
+  YYSYMBOL_IGUAL = 6,                      /* IGUAL  */
+  YYSYMBOL_COMA = 7,                       /* COMA  */
   YYSYMBOL_NENTERO = 8,                    /* NENTERO  */
-  YYSYMBOL_NDECIMAL = 9,                   /* NDECIMAL  */
-  YYSYMBOL_CADENA_LITERAL = 10,            /* CADENA_LITERAL  */
-  YYSYMBOL_ID = 11,                        /* ID  */
+  YYSYMBOL_CADENA_LITERAL = 9,             /* CADENA_LITERAL  */
+  YYSYMBOL_ID = 10,                        /* ID  */
+  YYSYMBOL_NDECIMAL = 11,                  /* NDECIMAL  */
   YYSYMBOL_SUMA = 12,                      /* SUMA  */
   YYSYMBOL_RESTA = 13,                     /* RESTA  */
   YYSYMBOL_MULT = 14,                      /* MULT  */
   YYSYMBOL_DIV = 15,                       /* DIV  */
   YYSYMBOL_LPAREN = 16,                    /* LPAREN  */
   YYSYMBOL_RPAREN = 17,                    /* RPAREN  */
-  YYSYMBOL_LEER = 18,                      /* LEER  */
-  YYSYMBOL_IMPRIMIR = 19,                  /* IMPRIMIR  */
-  YYSYMBOL_IF = 20,                        /* IF  */
-  YYSYMBOL_ELSE = 21,                      /* ELSE  */
-  YYSYMBOL_WHILE = 22,                     /* WHILE  */
-  YYSYMBOL_LLAVE_IZQ = 23,                 /* LLAVE_IZQ  */
-  YYSYMBOL_LLAVE_DER = 24,                 /* LLAVE_DER  */
-  YYSYMBOL_IGUAL_IGUAL = 25,               /* IGUAL_IGUAL  */
-  YYSYMBOL_DIFERENTE = 26,                 /* DIFERENTE  */
-  YYSYMBOL_MENOR = 27,                     /* MENOR  */
-  YYSYMBOL_MAYOR = 28,                     /* MAYOR  */
-  YYSYMBOL_MENOR_IGUAL = 29,               /* MENOR_IGUAL  */
-  YYSYMBOL_MAYOR_IGUAL = 30,               /* MAYOR_IGUAL  */
-  YYSYMBOL_YYACCEPT = 31,                  /* $accept  */
-  YYSYMBOL_programa = 32,                  /* programa  */
-  YYSYMBOL_lista_sentencias = 33,          /* lista_sentencias  */
-  YYSYMBOL_sentencia = 34,                 /* sentencia  */
-  YYSYMBOL_declaracion = 35,               /* declaracion  */
-  YYSYMBOL_asignacion = 36,                /* asignacion  */
-  YYSYMBOL_entrada = 37,                   /* entrada  */
-  YYSYMBOL_salida = 38,                    /* salida  */
-  YYSYMBOL_condicion = 39,                 /* condicion  */
-  YYSYMBOL_sentencia_if = 40,              /* sentencia_if  */
-  YYSYMBOL_sentencia_while = 41,           /* sentencia_while  */
-  YYSYMBOL_expresion = 42                  /* expresion  */
+  YYSYMBOL_IMPRIMIR = 18,                  /* IMPRIMIR  */
+  YYSYMBOL_IF = 19,                        /* IF  */
+  YYSYMBOL_ELSE = 20,                      /* ELSE  */
+  YYSYMBOL_WHILE = 21,                     /* WHILE  */
+  YYSYMBOL_FUNCION = 22,                   /* FUNCION  */
+  YYSYMBOL_RETORNAR = 23,                  /* RETORNAR  */
+  YYSYMBOL_LLAVE_IZQ = 24,                 /* LLAVE_IZQ  */
+  YYSYMBOL_LLAVE_DER = 25,                 /* LLAVE_DER  */
+  YYSYMBOL_IGUAL_IGUAL = 26,               /* IGUAL_IGUAL  */
+  YYSYMBOL_DIFERENTE = 27,                 /* DIFERENTE  */
+  YYSYMBOL_MENOR = 28,                     /* MENOR  */
+  YYSYMBOL_MAYOR = 29,                     /* MAYOR  */
+  YYSYMBOL_MENOR_IGUAL = 30,               /* MENOR_IGUAL  */
+  YYSYMBOL_MAYOR_IGUAL = 31,               /* MAYOR_IGUAL  */
+  YYSYMBOL_DECIMAL = 32,                   /* DECIMAL  */
+  YYSYMBOL_LEER = 33,                      /* LEER  */
+  YYSYMBOL_YYACCEPT = 34,                  /* $accept  */
+  YYSYMBOL_programa = 35,                  /* programa  */
+  YYSYMBOL_lista_sentencias = 36,          /* lista_sentencias  */
+  YYSYMBOL_sentencia = 37,                 /* sentencia  */
+  YYSYMBOL_declaracion_funcion = 38,       /* declaracion_funcion  */
+  YYSYMBOL_lista_parametros = 39,          /* lista_parametros  */
+  YYSYMBOL_sentencia_retorno = 40,         /* sentencia_retorno  */
+  YYSYMBOL_expresion = 41,                 /* expresion  */
+  YYSYMBOL_llamada_funcion = 42,           /* llamada_funcion  */
+  YYSYMBOL_lista_argumentos = 43,          /* lista_argumentos  */
+  YYSYMBOL_declaracion = 44,               /* declaracion  */
+  YYSYMBOL_asignacion = 45,                /* asignacion  */
+  YYSYMBOL_salida = 46,                    /* salida  */
+  YYSYMBOL_condicion = 47,                 /* condicion  */
+  YYSYMBOL_sentencia_if = 48,              /* sentencia_if  */
+  YYSYMBOL_sentencia_while = 49            /* sentencia_while  */
 };
 typedef enum yysymbol_kind_t yysymbol_kind_t;
 
@@ -674,21 +559,21 @@ union yyalloc
 #endif /* !YYCOPY_NEEDED */
 
 /* YYFINAL -- State number of the termination state.  */
-#define YYFINAL  26
+#define YYFINAL  3
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   120
+#define YYLAST   139
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  31
+#define YYNTOKENS  34
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  12
+#define YYNNTS  16
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  36
+#define YYNRULES  42
 /* YYNSTATES -- Number of states.  */
-#define YYNSTATES  85
+#define YYNSTATES  95
 
 /* YYMAXUTOK -- Last valid token kind.  */
-#define YYMAXUTOK   285
+#define YYMAXUTOK   288
 
 
 /* YYTRANSLATE(TOKEN-NUM) -- Symbol number corresponding to TOKEN-NUM
@@ -730,17 +615,18 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
        5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
       15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
-      25,    26,    27,    28,    29,    30
+      25,    26,    27,    28,    29,    30,    31,    32,    33
 };
 
 #if YYDEBUG
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
-static const yytype_int16 yyrline[] =
+static const yytype_uint8 yyrline[] =
 {
-       0,   238,   238,   245,   246,   254,   258,   259,   260,   261,
-     262,   263,   267,   268,   269,   273,   282,   298,   302,   303,
-     307,   308,   309,   310,   311,   312,   316,   320,   326,   332,
-     333,   334,   335,   336,   337,   338,   339
+       0,   124,   124,   131,   132,   136,   137,   138,   139,   140,
+     141,   142,   146,   153,   155,   157,   160,   164,   165,   166,
+     167,   168,   169,   170,   171,   172,   176,   180,   181,   182,
+     186,   187,   191,   198,   202,   203,   204,   205,   206,   207,
+     211,   212,   216
 };
 #endif
 
@@ -756,14 +642,16 @@ static const char *yysymbol_name (yysymbol_kind_t yysymbol) YY_ATTRIBUTE_UNUSED;
    First, the terminals, then, starting at YYNTOKENS, nonterminals.  */
 static const char *const yytname[] =
 {
-  "\"end of file\"", "error", "\"invalid token\"", "ENTERO", "DECIMAL",
-  "CADENA", "PUNTOYCOMA", "IGUAL", "NENTERO", "NDECIMAL", "CADENA_LITERAL",
-  "ID", "SUMA", "RESTA", "MULT", "DIV", "LPAREN", "RPAREN", "LEER",
-  "IMPRIMIR", "IF", "ELSE", "WHILE", "LLAVE_IZQ", "LLAVE_DER",
-  "IGUAL_IGUAL", "DIFERENTE", "MENOR", "MAYOR", "MENOR_IGUAL",
-  "MAYOR_IGUAL", "$accept", "programa", "lista_sentencias", "sentencia",
-  "declaracion", "asignacion", "entrada", "salida", "condicion",
-  "sentencia_if", "sentencia_while", "expresion", YY_NULLPTR
+  "\"end of file\"", "error", "\"invalid token\"", "ENTERO", "CADENA",
+  "PUNTOYCOMA", "IGUAL", "COMA", "NENTERO", "CADENA_LITERAL", "ID",
+  "NDECIMAL", "SUMA", "RESTA", "MULT", "DIV", "LPAREN", "RPAREN",
+  "IMPRIMIR", "IF", "ELSE", "WHILE", "FUNCION", "RETORNAR", "LLAVE_IZQ",
+  "LLAVE_DER", "IGUAL_IGUAL", "DIFERENTE", "MENOR", "MAYOR", "MENOR_IGUAL",
+  "MAYOR_IGUAL", "DECIMAL", "LEER", "$accept", "programa",
+  "lista_sentencias", "sentencia", "declaracion_funcion",
+  "lista_parametros", "sentencia_retorno", "expresion", "llamada_funcion",
+  "lista_argumentos", "declaracion", "asignacion", "salida", "condicion",
+  "sentencia_if", "sentencia_while", YY_NULLPTR
 };
 
 static const char *
@@ -773,7 +661,7 @@ yysymbol_name (yysymbol_kind_t yysymbol)
 }
 #endif
 
-#define YYPACT_NINF (-63)
+#define YYPACT_NINF (-12)
 
 #define yypact_value_is_default(Yyn) \
   ((Yyn) == YYPACT_NINF)
@@ -787,15 +675,16 @@ yysymbol_name (yysymbol_kind_t yysymbol)
    STATE-NUM.  */
 static const yytype_int8 yypact[] =
 {
-      71,    -2,     5,    11,    40,     9,    33,    34,    42,    54,
-      71,   -63,   -63,   -63,   -63,   -63,   -63,   -63,    60,    63,
-      65,    35,    49,     1,    -3,    -3,   -63,   -63,   -63,   -63,
-     -63,   -63,   -63,    66,   -63,    -3,    18,    48,    75,    77,
-      78,    72,    79,   -63,    91,   -63,    -3,    -3,    -3,    -3,
-      74,    82,   101,    90,    -3,    -3,    -3,    -3,    -3,    -3,
-      92,   -63,    38,    38,   -63,   -63,   -63,   -63,   -63,    71,
-      97,    97,    97,    97,    97,    97,    71,    -1,    37,    93,
-     -63,    94,    71,    59,   -63
+     -12,     7,    84,   -12,    -9,    -2,     4,    21,    29,    32,
+      20,   111,   -12,   -12,   -12,   -12,   -12,   -12,   -12,   -12,
+      24,    57,   111,   111,   111,   111,    46,   -12,   -12,    47,
+     111,     1,   -12,   -12,   -12,   103,   116,    83,    58,    60,
+      62,   111,   122,   -12,   111,   111,   111,   111,   -12,    85,
+     111,   111,   111,   111,   111,   111,    65,    67,    89,    45,
+      76,   -12,   -10,   -10,   -12,   -12,   -12,    13,    13,    13,
+      13,    13,    13,   -12,   -12,    90,    82,   111,   -12,    -1,
+      28,    94,    80,   -12,   102,   -12,    89,   -12,    99,   -12,
+      51,   -12,   -12,    61,   -12
 };
 
 /* YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
@@ -803,29 +692,30 @@ static const yytype_int8 yypact[] =
    means the default is an error.  */
 static const yytype_int8 yydefact[] =
 {
-       5,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       2,     3,     6,     7,     8,     9,    10,    11,     0,     0,
-       0,     0,     0,     0,     0,     0,     1,     4,    12,    13,
-      14,    29,    30,     0,    31,     0,     0,     0,     0,     0,
-       0,     0,     0,    16,     0,    15,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,    36,    32,    33,    34,    35,    17,    19,    18,     5,
-      20,    21,    22,    23,    24,    25,     5,     0,     0,    27,
-      28,     0,     5,     0,    26
+       3,     0,     2,     1,     0,     0,     0,     0,     0,     0,
+       0,     0,     4,    11,    10,     5,     6,     7,     8,     9,
+       0,     0,     0,     0,     0,     0,     0,    17,    19,    18,
+       0,     0,    25,    30,    31,     0,     0,     0,     0,     0,
+       0,    27,     0,    16,     0,     0,     0,     0,    32,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,    13,    28,
+       0,    24,    20,    21,    22,    23,    33,    34,    35,    36,
+      37,    38,    39,     3,     3,     0,     0,    27,    26,     0,
+       0,    14,     0,    29,    40,    42,    13,     3,     0,    15,
+       0,     3,    12,     0,    41
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-     -63,   -63,   -62,   -10,   -63,   -63,   -63,   -63,    95,   -63,
-     -63,   -20
+     -12,   -12,    -6,   -12,   -12,    38,   -12,   -11,   -12,    48,
+     -12,   -12,   -12,   101,   -12,   -12
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-       0,     9,    10,    11,    12,    13,    14,    15,    40,    16,
-      17,    41
+       0,     1,     2,    12,    13,    76,    14,    37,    32,    60,
+      15,    16,    17,    38,    18,    19
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
@@ -833,69 +723,74 @@ static const yytype_int8 yydefgoto[] =
    number is the opposite.  If YYTABLE_NINF, syntax error.  */
 static const yytype_int8 yytable[] =
 {
-      27,    36,     1,     2,     3,    31,    32,    77,    34,    18,
-       4,    38,    39,    35,    78,    44,    19,     5,     6,     7,
-      83,     8,    20,    79,    45,    22,    62,    63,    64,    65,
-      46,    47,    48,    49,    70,    71,    72,    73,    74,    75,
-       1,     2,     3,    31,    32,    33,    34,    21,     4,    23,
-      24,    35,    48,    49,    26,     5,     6,     7,    25,     8,
-      37,    80,     1,     2,     3,    50,    28,    27,    27,    29,
-       4,    30,    43,    27,     1,     2,     3,     5,     6,     7,
-      66,     8,     4,    84,    46,    47,    48,    49,    67,     5,
-       6,     7,    51,     8,    52,    53,    60,    54,    55,    56,
-      57,    58,    59,    46,    47,    48,    49,    68,    61,    46,
-      47,    48,    49,    69,    81,    76,     0,    82,     0,     0,
-      42
+      31,    20,     4,     5,    46,    47,    43,     3,    21,     6,
+      22,    35,    36,    44,    45,    46,    47,     7,     8,    42,
+       9,    10,    11,    26,    84,    44,    45,    46,    47,    33,
+      59,     4,     5,    62,    63,    64,    65,    23,     6,    67,
+      68,    69,    70,    71,    72,    24,     7,     8,    25,     9,
+      10,    11,    77,    85,     4,     5,    40,    44,    45,    46,
+      47,     6,    34,    41,     4,     5,    59,    79,    80,     7,
+       8,     6,     9,    10,    11,    56,    92,    57,    58,     7,
+       8,    90,     9,    10,    11,    93,    94,     4,     5,    73,
+      66,    74,    75,    78,     6,    44,    45,    46,    47,    82,
+      81,    86,     7,     8,    87,     9,    10,    11,    48,    50,
+      51,    52,    53,    54,    55,    44,    45,    46,    47,    27,
+      28,    29,    88,    91,    89,    83,    39,    30,    44,    45,
+      46,    47,     0,    49,    44,    45,    46,    47,     0,    61
 };
 
 static const yytype_int8 yycheck[] =
 {
-      10,    21,     3,     4,     5,     8,     9,    69,    11,    11,
-      11,    10,    11,    16,    76,    35,    11,    18,    19,    20,
-      82,    22,    11,    24,     6,    16,    46,    47,    48,    49,
-      12,    13,    14,    15,    54,    55,    56,    57,    58,    59,
-       3,     4,     5,     8,     9,    10,    11,     7,    11,    16,
-      16,    16,    14,    15,     0,    18,    19,    20,    16,    22,
-      11,    24,     3,     4,     5,    17,     6,    77,    78,     6,
-      11,     6,     6,    83,     3,     4,     5,    18,    19,    20,
-       6,    22,    11,    24,    12,    13,    14,    15,     6,    18,
-      19,    20,    17,    22,    17,    17,    17,    25,    26,    27,
-      28,    29,    30,    12,    13,    14,    15,     6,    17,    12,
-      13,    14,    15,    23,    21,    23,    -1,    23,    -1,    -1,
-      25
+      11,    10,     3,     4,    14,    15,     5,     0,    10,    10,
+       6,    22,    23,    12,    13,    14,    15,    18,    19,    30,
+      21,    22,    23,     3,    25,    12,    13,    14,    15,     5,
+      41,     3,     4,    44,    45,    46,    47,    16,    10,    50,
+      51,    52,    53,    54,    55,    16,    18,    19,    16,    21,
+      22,    23,     7,    25,     3,     4,    10,    12,    13,    14,
+      15,    10,     5,    16,     3,     4,    77,    73,    74,    18,
+      19,    10,    21,    22,    23,    17,    25,    17,    16,    18,
+      19,    87,    21,    22,    23,    91,    25,     3,     4,    24,
+       5,    24,     3,    17,    10,    12,    13,    14,    15,    17,
+      10,     7,    18,    19,    24,    21,    22,    23,     5,    26,
+      27,    28,    29,    30,    31,    12,    13,    14,    15,     8,
+       9,    10,    20,    24,    86,    77,    25,    16,    12,    13,
+      14,    15,    -1,    17,    12,    13,    14,    15,    -1,    17
 };
 
 /* YYSTOS[STATE-NUM] -- The symbol kind of the accessing symbol of
    state STATE-NUM.  */
 static const yytype_int8 yystos[] =
 {
-       0,     3,     4,     5,    11,    18,    19,    20,    22,    32,
-      33,    34,    35,    36,    37,    38,    40,    41,    11,    11,
-      11,     7,    16,    16,    16,    16,     0,    34,     6,     6,
-       6,     8,     9,    10,    11,    16,    42,    11,    10,    11,
-      39,    42,    39,     6,    42,     6,    12,    13,    14,    15,
-      17,    17,    17,    17,    25,    26,    27,    28,    29,    30,
-      17,    17,    42,    42,    42,    42,     6,     6,     6,    23,
-      42,    42,    42,    42,    42,    42,    23,    33,    33,    24,
-      24,    21,    23,    33,    24
+       0,    35,    36,     0,     3,     4,    10,    18,    19,    21,
+      22,    23,    37,    38,    40,    44,    45,    46,    48,    49,
+      10,    10,     6,    16,    16,    16,     3,     8,     9,    10,
+      16,    41,    42,     5,     5,    41,    41,    41,    47,    47,
+      10,    16,    41,     5,    12,    13,    14,    15,     5,    17,
+      26,    27,    28,    29,    30,    31,    17,    17,    16,    41,
+      43,    17,    41,    41,    41,    41,     5,    41,    41,    41,
+      41,    41,    41,    24,    24,     3,    39,     7,    17,    36,
+      36,    10,    17,    43,    25,    25,     7,    24,    20,    39,
+      36,    24,    25,    36,    25
 };
 
 /* YYR1[RULE-NUM] -- Symbol kind of the left-hand side of rule RULE-NUM.  */
 static const yytype_int8 yyr1[] =
 {
-       0,    31,    32,    33,    33,    33,    34,    34,    34,    34,
-      34,    34,    35,    35,    35,    36,    36,    37,    38,    38,
-      39,    39,    39,    39,    39,    39,    40,    40,    41,    42,
-      42,    42,    42,    42,    42,    42,    42
+       0,    34,    35,    36,    36,    37,    37,    37,    37,    37,
+      37,    37,    38,    39,    39,    39,    40,    41,    41,    41,
+      41,    41,    41,    41,    41,    41,    42,    43,    43,    43,
+      44,    44,    45,    46,    47,    47,    47,    47,    47,    47,
+      48,    48,    49
 };
 
 /* YYR2[RULE-NUM] -- Number of symbols on the right-hand side of rule RULE-NUM.  */
 static const yytype_int8 yyr2[] =
 {
-       0,     2,     1,     1,     2,     0,     1,     1,     1,     1,
-       1,     1,     3,     3,     3,     4,     4,     5,     5,     5,
-       3,     3,     3,     3,     3,     3,    11,     7,     7,     1,
-       1,     1,     3,     3,     3,     3,     3
+       0,     2,     1,     0,     2,     1,     1,     1,     1,     1,
+       1,     1,     9,     0,     2,     4,     3,     1,     1,     1,
+       3,     3,     3,     3,     3,     1,     4,     0,     1,     3,
+       3,     3,     4,     5,     3,     3,     3,     3,     3,     3,
+       7,    11,     7
 };
 
 
@@ -1359,253 +1254,262 @@ yyreduce:
   switch (yyn)
     {
   case 2: /* programa: lista_sentencias  */
-#line 238 "parser.y"
+#line 124 "parser.y"
                      {
         (yyval.nodo_ast) = crear_nodo_programa((yyvsp[0].nodo_ast), yylineno);
-        g_ast_raiz = (yyval.nodo_ast);
+        g_ast_raiz = (yyval.nodo_ast); // <-- ¡ESTA ES LA LÍNEA CLAVE QUE FALTA!
     }
-#line 1368 "parser.tab.c"
+#line 1263 "parser.tab.c"
     break;
 
-  case 3: /* lista_sentencias: sentencia  */
-#line 245 "parser.y"
-              { (yyval.nodo_ast) = crear_nodo_lista_sentencias((yyvsp[0].nodo_ast), NULL, yylineno); }
-#line 1374 "parser.tab.c"
+  case 3: /* lista_sentencias: %empty  */
+#line 131 "parser.y"
+           { (yyval.nodo_ast) = NULL; }
+#line 1269 "parser.tab.c"
     break;
 
   case 4: /* lista_sentencias: lista_sentencias sentencia  */
-#line 246 "parser.y"
-                                 {
-        NodoAST* actual = (yyvsp[-1].nodo_ast);
-        while(actual->datos.lista_sentencias.siguiente != NULL) {
-            actual = actual->datos.lista_sentencias.siguiente;
-        }
-        actual->datos.lista_sentencias.siguiente = crear_nodo_lista_sentencias((yyvsp[0].nodo_ast), NULL, yylineno);
-        (yyval.nodo_ast) = (yyvsp[-1].nodo_ast);
-    }
-#line 1387 "parser.tab.c"
+#line 132 "parser.y"
+                                 { (yyval.nodo_ast) = crear_nodo_lista_sentencias((yyvsp[0].nodo_ast), (yyvsp[-1].nodo_ast), yylineno); }
+#line 1275 "parser.tab.c"
     break;
 
-  case 5: /* lista_sentencias: %empty  */
-#line 254 "parser.y"
-             { (yyval.nodo_ast) = NULL; }
-#line 1393 "parser.tab.c"
-    break;
-
-  case 6: /* sentencia: declaracion  */
-#line 258 "parser.y"
+  case 5: /* sentencia: declaracion  */
+#line 136 "parser.y"
                 { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
-#line 1399 "parser.tab.c"
+#line 1281 "parser.tab.c"
     break;
 
-  case 7: /* sentencia: asignacion  */
-#line 259 "parser.y"
+  case 6: /* sentencia: asignacion  */
+#line 137 "parser.y"
                   { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
-#line 1405 "parser.tab.c"
+#line 1287 "parser.tab.c"
     break;
 
-  case 8: /* sentencia: entrada  */
-#line 260 "parser.y"
+  case 7: /* sentencia: salida  */
+#line 138 "parser.y"
                   { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
-#line 1411 "parser.tab.c"
+#line 1293 "parser.tab.c"
     break;
 
-  case 9: /* sentencia: salida  */
-#line 261 "parser.y"
+  case 8: /* sentencia: sentencia_if  */
+#line 139 "parser.y"
                   { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
-#line 1417 "parser.tab.c"
+#line 1299 "parser.tab.c"
     break;
 
-  case 10: /* sentencia: sentencia_if  */
-#line 262 "parser.y"
-                  { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
-#line 1423 "parser.tab.c"
-    break;
-
-  case 11: /* sentencia: sentencia_while  */
-#line 263 "parser.y"
+  case 9: /* sentencia: sentencia_while  */
+#line 140 "parser.y"
                       { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
-#line 1429 "parser.tab.c"
+#line 1305 "parser.tab.c"
     break;
 
-  case 12: /* declaracion: ENTERO ID PUNTOYCOMA  */
-#line 267 "parser.y"
+  case 10: /* sentencia: sentencia_retorno  */
+#line 141 "parser.y"
+                        { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
+#line 1311 "parser.tab.c"
+    break;
+
+  case 11: /* sentencia: declaracion_funcion  */
+#line 142 "parser.y"
+                          { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
+#line 1317 "parser.tab.c"
+    break;
+
+  case 12: /* declaracion_funcion: FUNCION ENTERO ID LPAREN lista_parametros RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER  */
+#line 146 "parser.y"
+                                                                                          {
+        (yyval.nodo_ast) = crear_nodo_declaracion_funcion((yyvsp[-6].str), (yyvsp[-4].nodo_ast), (yyvsp[-1].nodo_ast), yylineno);
+        free((yyvsp[-6].str));
+    }
+#line 1326 "parser.tab.c"
+    break;
+
+  case 13: /* lista_parametros: %empty  */
+#line 153 "parser.y"
+           { (yyval.nodo_ast) = NULL; }
+#line 1332 "parser.tab.c"
+    break;
+
+  case 14: /* lista_parametros: ENTERO ID  */
+#line 155 "parser.y"
+                { (yyval.nodo_ast) = crear_nodo_lista_args((yyvsp[0].str), NULL, NULL, yylineno); free((yyvsp[0].str)); }
+#line 1338 "parser.tab.c"
+    break;
+
+  case 15: /* lista_parametros: ENTERO ID COMA lista_parametros  */
+#line 157 "parser.y"
+                                      { (yyval.nodo_ast) = crear_nodo_lista_args((yyvsp[-2].str), NULL, (yyvsp[0].nodo_ast), yylineno); free((yyvsp[-2].str)); }
+#line 1344 "parser.tab.c"
+    break;
+
+  case 16: /* sentencia_retorno: RETORNAR expresion PUNTOYCOMA  */
+#line 160 "parser.y"
+                                  { (yyval.nodo_ast) = crear_nodo_sentencia_retorno((yyvsp[-1].nodo_ast), yylineno); }
+#line 1350 "parser.tab.c"
+    break;
+
+  case 17: /* expresion: NENTERO  */
+#line 164 "parser.y"
+            { (yyval.nodo_ast) = crear_nodo_entero(atoi((yyvsp[0].str)), yylineno); free((yyvsp[0].str)); }
+#line 1356 "parser.tab.c"
+    break;
+
+  case 18: /* expresion: ID  */
+#line 165 "parser.y"
+         { (yyval.nodo_ast) = crear_nodo_id_expresion((yyvsp[0].str), yylineno); free((yyvsp[0].str)); }
+#line 1362 "parser.tab.c"
+    break;
+
+  case 19: /* expresion: CADENA_LITERAL  */
+#line 166 "parser.y"
+                     { (yyval.nodo_ast) = crear_nodo_cadena_literal_expresion((yyvsp[0].str), yylineno); free((yyvsp[0].str)); }
+#line 1368 "parser.tab.c"
+    break;
+
+  case 20: /* expresion: expresion SUMA expresion  */
+#line 167 "parser.y"
+                               { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_SUMA, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+#line 1374 "parser.tab.c"
+    break;
+
+  case 21: /* expresion: expresion RESTA expresion  */
+#line 168 "parser.y"
+                                { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_RESTA, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+#line 1380 "parser.tab.c"
+    break;
+
+  case 22: /* expresion: expresion MULT expresion  */
+#line 169 "parser.y"
+                                { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_MULT, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+#line 1386 "parser.tab.c"
+    break;
+
+  case 23: /* expresion: expresion DIV expresion  */
+#line 170 "parser.y"
+                                { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_DIV, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+#line 1392 "parser.tab.c"
+    break;
+
+  case 24: /* expresion: LPAREN expresion RPAREN  */
+#line 171 "parser.y"
+                                { (yyval.nodo_ast) = (yyvsp[-1].nodo_ast); }
+#line 1398 "parser.tab.c"
+    break;
+
+  case 25: /* expresion: llamada_funcion  */
+#line 172 "parser.y"
+                      { (yyval.nodo_ast) = (yyvsp[0].nodo_ast); }
+#line 1404 "parser.tab.c"
+    break;
+
+  case 26: /* llamada_funcion: ID LPAREN lista_argumentos RPAREN  */
+#line 176 "parser.y"
+                                      { (yyval.nodo_ast) = crear_nodo_llamada_funcion((yyvsp[-3].str), (yyvsp[-1].nodo_ast), yylineno); free((yyvsp[-3].str)); }
+#line 1410 "parser.tab.c"
+    break;
+
+  case 27: /* lista_argumentos: %empty  */
+#line 180 "parser.y"
+           { (yyval.nodo_ast) = NULL; }
+#line 1416 "parser.tab.c"
+    break;
+
+  case 28: /* lista_argumentos: expresion  */
+#line 181 "parser.y"
+                { (yyval.nodo_ast) = crear_nodo_lista_args(NULL, (yyvsp[0].nodo_ast), NULL, yylineno); }
+#line 1422 "parser.tab.c"
+    break;
+
+  case 29: /* lista_argumentos: expresion COMA lista_argumentos  */
+#line 182 "parser.y"
+                                      { (yyval.nodo_ast) = crear_nodo_lista_args(NULL, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+#line 1428 "parser.tab.c"
+    break;
+
+  case 30: /* declaracion: ENTERO ID PUNTOYCOMA  */
+#line 186 "parser.y"
                           { (yyval.nodo_ast) = crear_nodo_declaracion(TIPO_ENTERO, (yyvsp[-1].str), yylineno); free((yyvsp[-1].str)); }
-#line 1435 "parser.tab.c"
+#line 1434 "parser.tab.c"
     break;
 
-  case 13: /* declaracion: DECIMAL ID PUNTOYCOMA  */
-#line 268 "parser.y"
-                            { (yyval.nodo_ast) = crear_nodo_declaracion(TIPO_DECIMAL, (yyvsp[-1].str), yylineno); free((yyvsp[-1].str)); }
-#line 1441 "parser.tab.c"
-    break;
-
-  case 14: /* declaracion: CADENA ID PUNTOYCOMA  */
-#line 269 "parser.y"
+  case 31: /* declaracion: CADENA ID PUNTOYCOMA  */
+#line 187 "parser.y"
                             { (yyval.nodo_ast) = crear_nodo_declaracion(TIPO_CADENA, (yyvsp[-1].str), yylineno); free((yyvsp[-1].str)); }
-#line 1447 "parser.tab.c"
+#line 1440 "parser.tab.c"
     break;
 
-  case 15: /* asignacion: ID IGUAL expresion PUNTOYCOMA  */
-#line 273 "parser.y"
+  case 32: /* asignacion: ID IGUAL expresion PUNTOYCOMA  */
+#line 191 "parser.y"
                                   {
-        int idx = buscar_variable((yyvsp[-3].str));
-        if (idx == -1) {
-            char err_msg[100]; sprintf(err_msg, "Línea %d: Variable no declarada '%s'", yylineno, (yyvsp[-3].str));
-            yyerror(err_msg); YYABORT;
-        }
-        (yyval.nodo_ast) = crear_nodo_asignacion((yyvsp[-3].str), (yyvsp[-1].nodo_ast), tabla[idx].tipo, yylineno);
+        (yyval.nodo_ast) = crear_nodo_asignacion((yyvsp[-3].str), (yyvsp[-1].nodo_ast), yylineno);
         free((yyvsp[-3].str));
     }
+#line 1449 "parser.tab.c"
+    break;
+
+  case 33: /* salida: IMPRIMIR LPAREN expresion RPAREN PUNTOYCOMA  */
+#line 198 "parser.y"
+                                                { (yyval.nodo_ast) = crear_nodo_salida((yyvsp[-2].nodo_ast), yylineno); }
+#line 1455 "parser.tab.c"
+    break;
+
+  case 34: /* condicion: expresion IGUAL_IGUAL expresion  */
+#line 202 "parser.y"
+                                      { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_IGUAL_IGUAL, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
 #line 1461 "parser.tab.c"
     break;
 
-  case 16: /* asignacion: ID IGUAL CADENA_LITERAL PUNTOYCOMA  */
-#line 282 "parser.y"
-                                         {
-        int idx = buscar_variable((yyvsp[-3].str));
-        if (idx == -1) {
-            char err_msg[100]; sprintf(err_msg, "Línea %d: Variable no declarada '%s'", yylineno, (yyvsp[-3].str));
-            yyerror(err_msg); YYABORT;
-        }
-        if (tabla[idx].tipo != TIPO_CADENA) {
-            char err_msg[100]; sprintf(err_msg, "Línea %d: Incompatibilidad de tipos en asignación para '%s'", yylineno, (yyvsp[-3].str));
-            yyerror(err_msg); YYABORT;
-        }
-        (yyval.nodo_ast) = crear_nodo_asignacion((yyvsp[-3].str), crear_nodo_cadena_literal_expresion((yyvsp[-1].str), yylineno), TIPO_CADENA, yylineno);
-        free((yyvsp[-3].str)); free((yyvsp[-1].str));
-    }
+  case 35: /* condicion: expresion DIFERENTE expresion  */
+#line 203 "parser.y"
+                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_DIFERENTE, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+#line 1467 "parser.tab.c"
+    break;
+
+  case 36: /* condicion: expresion MENOR expresion  */
+#line 204 "parser.y"
+                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MENOR, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+#line 1473 "parser.tab.c"
+    break;
+
+  case 37: /* condicion: expresion MAYOR expresion  */
+#line 205 "parser.y"
+                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MAYOR, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
 #line 1479 "parser.tab.c"
     break;
 
-  case 17: /* entrada: LEER LPAREN ID RPAREN PUNTOYCOMA  */
-#line 298 "parser.y"
-                                     { (yyval.nodo_ast) = crear_nodo_entrada((yyvsp[-2].str), yylineno); free((yyvsp[-2].str)); }
+  case 38: /* condicion: expresion MENOR_IGUAL expresion  */
+#line 206 "parser.y"
+                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MENOR_IGUAL, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
 #line 1485 "parser.tab.c"
     break;
 
-  case 18: /* salida: IMPRIMIR LPAREN ID RPAREN PUNTOYCOMA  */
-#line 302 "parser.y"
-                                         { (yyval.nodo_ast) = crear_nodo_salida_id((yyvsp[-2].str), yylineno); free((yyvsp[-2].str)); }
+  case 39: /* condicion: expresion MAYOR_IGUAL expresion  */
+#line 207 "parser.y"
+                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MAYOR_IGUAL, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
 #line 1491 "parser.tab.c"
     break;
 
-  case 19: /* salida: IMPRIMIR LPAREN CADENA_LITERAL RPAREN PUNTOYCOMA  */
-#line 303 "parser.y"
-                                                       { (yyval.nodo_ast) = crear_nodo_salida_literal((yyvsp[-2].str), yylineno); free((yyvsp[-2].str)); }
+  case 40: /* sentencia_if: IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER  */
+#line 211 "parser.y"
+                                                                    { (yyval.nodo_ast) = crear_nodo_if((yyvsp[-4].nodo_ast), (yyvsp[-1].nodo_ast), NULL, yylineno); }
 #line 1497 "parser.tab.c"
     break;
 
-  case 20: /* condicion: expresion IGUAL_IGUAL expresion  */
-#line 307 "parser.y"
-                                      { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_IGUAL_IGUAL, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+  case 41: /* sentencia_if: IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER ELSE LLAVE_IZQ lista_sentencias LLAVE_DER  */
+#line 212 "parser.y"
+                                                                                                              { (yyval.nodo_ast) = crear_nodo_if((yyvsp[-8].nodo_ast), (yyvsp[-5].nodo_ast), (yyvsp[-1].nodo_ast), yylineno); }
 #line 1503 "parser.tab.c"
     break;
 
-  case 21: /* condicion: expresion DIFERENTE expresion  */
-#line 308 "parser.y"
-                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_DIFERENTE, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
+  case 42: /* sentencia_while: WHILE LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER  */
+#line 216 "parser.y"
+                                                                       { (yyval.nodo_ast) = crear_nodo_while((yyvsp[-4].nodo_ast), (yyvsp[-1].nodo_ast), yylineno); }
 #line 1509 "parser.tab.c"
     break;
 
-  case 22: /* condicion: expresion MENOR expresion  */
-#line 309 "parser.y"
-                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MENOR, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1515 "parser.tab.c"
-    break;
 
-  case 23: /* condicion: expresion MAYOR expresion  */
-#line 310 "parser.y"
-                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MAYOR, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1521 "parser.tab.c"
-    break;
-
-  case 24: /* condicion: expresion MENOR_IGUAL expresion  */
-#line 311 "parser.y"
-                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MENOR_IGUAL, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1527 "parser.tab.c"
-    break;
-
-  case 25: /* condicion: expresion MAYOR_IGUAL expresion  */
-#line 312 "parser.y"
-                                        { (yyval.nodo_ast) = crear_nodo_condicion_binaria(OP_MAYOR_IGUAL, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1533 "parser.tab.c"
-    break;
-
-  case 26: /* sentencia_if: IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER ELSE LLAVE_IZQ lista_sentencias LLAVE_DER  */
-#line 317 "parser.y"
-                                              {
-        (yyval.nodo_ast) = crear_nodo_if((yyvsp[-8].nodo_ast), (yyvsp[-5].nodo_ast), (yyvsp[-1].nodo_ast), yylineno);
-    }
-#line 1541 "parser.tab.c"
-    break;
-
-  case 27: /* sentencia_if: IF LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER  */
-#line 320 "parser.y"
-                                                                                 {
-        (yyval.nodo_ast) = crear_nodo_if((yyvsp[-4].nodo_ast), (yyvsp[-1].nodo_ast), NULL, yylineno);
-    }
-#line 1549 "parser.tab.c"
-    break;
-
-  case 28: /* sentencia_while: WHILE LPAREN condicion RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER  */
-#line 326 "parser.y"
-                                                                       {
-        (yyval.nodo_ast) = crear_nodo_while((yyvsp[-4].nodo_ast), (yyvsp[-1].nodo_ast), yylineno);
-    }
-#line 1557 "parser.tab.c"
-    break;
-
-  case 29: /* expresion: NENTERO  */
-#line 332 "parser.y"
-                          { (yyval.nodo_ast) = crear_nodo_entero(atoi((yyvsp[0].str)), yylineno); free((yyvsp[0].str)); }
-#line 1563 "parser.tab.c"
-    break;
-
-  case 30: /* expresion: NDECIMAL  */
-#line 333 "parser.y"
-                          { (yyval.nodo_ast) = crear_nodo_decimal(atof((yyvsp[0].str)), yylineno); free((yyvsp[0].str)); }
-#line 1569 "parser.tab.c"
-    break;
-
-  case 31: /* expresion: ID  */
-#line 334 "parser.y"
-                          { (yyval.nodo_ast) = crear_nodo_id_expresion((yyvsp[0].str), yylineno); free((yyvsp[0].str)); }
-#line 1575 "parser.tab.c"
-    break;
-
-  case 32: /* expresion: expresion SUMA expresion  */
-#line 335 "parser.y"
-                                { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_SUMA, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1581 "parser.tab.c"
-    break;
-
-  case 33: /* expresion: expresion RESTA expresion  */
-#line 336 "parser.y"
-                                { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_RESTA, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1587 "parser.tab.c"
-    break;
-
-  case 34: /* expresion: expresion MULT expresion  */
-#line 337 "parser.y"
-                                { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_MULT, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1593 "parser.tab.c"
-    break;
-
-  case 35: /* expresion: expresion DIV expresion  */
-#line 338 "parser.y"
-                                { (yyval.nodo_ast) = crear_nodo_expresion_binaria(OP_DIV, (yyvsp[-2].nodo_ast), (yyvsp[0].nodo_ast), yylineno); }
-#line 1599 "parser.tab.c"
-    break;
-
-  case 36: /* expresion: LPAREN expresion RPAREN  */
-#line 339 "parser.y"
-                                { (yyval.nodo_ast) = (yyvsp[-1].nodo_ast); }
-#line 1605 "parser.tab.c"
-    break;
-
-
-#line 1609 "parser.tab.c"
+#line 1513 "parser.tab.c"
 
       default: break;
     }
@@ -1798,84 +1702,119 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 341 "parser.y"
+#line 219 "parser.y"
+
+/* ================================================================== */
+/* --- SECCIÓN 4: CÓDIGO C ADICIONAL (DEFINICIONES DE FUNCIONES) --- */
+/* ================================================================== */
 
 
-/* --- SECCIÓN DE GENERACIÓN DE CÓDIGO --- */
+/* --- Implementaciones de Funciones --- */
+void yyerror(const char* s) { fprintf(stderr, "Error de sintaxis en línea %d: Cerca del texto '%s'. Mensaje: %s\n", yylineno, yytext, s); }
+int yywrap() { return 1; }
+int buscar_variable(const char* nombre) { for (int i = 0; i < num_vars; ++i) if (strcmp(tabla[i].nombre, nombre) == 0) return i; return -1; }
+void declarar_variable(const char* nombre, TipoDato tipo) { if (buscar_variable(nombre) != -1) { char msg[100]; sprintf(msg, "Variable '%s' ya declarada.", nombre); yyerror(msg); exit(1); } if (num_vars >= MAX_VARS) { yyerror("Tabla de símbolos llena."); exit(1); } strcpy(tabla[num_vars].nombre, nombre); tabla[num_vars].tipo = tipo; num_vars++; }
+TipoDato deducir_tipo_expr(NodoAST* nodo) { if (!nodo) return TIPO_INDEFINIDO; switch(nodo->tipo_nodo) { case NODO_EXPRESION_ENTERO: return TIPO_ENTERO; case NODO_EXPRESION_CADENA_LITERAL: return TIPO_CADENA; case NODO_EXPRESION_ID: { int idx = buscar_variable(nodo->datos.id_expr.id_nombre); return (idx != -1) ? tabla[idx].tipo : TIPO_INDEFINIDO; } case NODO_LLAMADA_FUNCION: return TIPO_ENTERO; case NODO_EXPRESION_BINARIA: return TIPO_ENTERO; default: return TIPO_INDEFINIDO; } }
 
-// Prototipo de la función auxiliar para expresiones
+/* --- Implementaciones de crear_nodo_* --- */
+NodoAST* crear_nodo(TipoNodoAST tipo, int l) { NodoAST* n=(NodoAST*)malloc(sizeof(NodoAST)); if(!n){yyerror("malloc failed"); exit(1);} n->tipo_nodo=tipo; n->linenum=l; memset(&n->datos,0,sizeof(n->datos)); return n; }
+NodoAST* crear_nodo_programa(NodoAST* l, int lin) { NodoAST* n=crear_nodo(NODO_PROGRAMA,lin); n->datos.programa.lista_sentencias_hijo=l; return n; }
+NodoAST* crear_nodo_lista_sentencias(NodoAST* s, NodoAST* sig, int l) { NodoAST* n=crear_nodo(NODO_LISTA_SENTENCIAS,l); n->datos.lista_sentencias.sentencia=s; n->datos.lista_sentencias.siguiente=sig; return n; }
+NodoAST* crear_nodo_declaracion(TipoDato t, char* id, int l) { NodoAST* n=crear_nodo(NODO_DECLARACION,l); n->datos.declaracion.tipo_dato=t; n->datos.declaracion.id_nombre=strdup(id); declarar_variable(id,t); return n; }
+NodoAST* crear_nodo_asignacion(char* id, NodoAST* e, int l) { NodoAST* n=crear_nodo(NODO_ASIGNACION,l); n->datos.asignacion.id_nombre=strdup(id); n->datos.asignacion.expresion_derecha=e; return n; }
+NodoAST* crear_nodo_salida(NodoAST* expr, int l) { NodoAST* n=crear_nodo(NODO_SALIDA,l); n->datos.salida.expresion_salida=expr; return n; }
+NodoAST* crear_nodo_if(NodoAST* c, NodoAST* t, NodoAST* e, int l) { NodoAST* n=crear_nodo(NODO_IF,l); n->datos.sentencia_if.condicion=c; n->datos.sentencia_if.bloque_then=t; n->datos.sentencia_if.bloque_else=e; return n; }
+NodoAST* crear_nodo_while(NodoAST* c, NodoAST* b, int l) { NodoAST* n=crear_nodo(NODO_WHILE,l); n->datos.sentencia_while.condicion=c; n->datos.sentencia_while.bloque=b; return n; }
+NodoAST* crear_nodo_expresion_binaria(OperadorAST o, NodoAST* i, NodoAST* d, int l) { NodoAST* n=crear_nodo(NODO_EXPRESION_BINARIA,l); n->datos.expresion_binaria.operador=o; n->datos.expresion_binaria.izquierda=i; n->datos.expresion_binaria.derecha=d; return n; }
+NodoAST* crear_nodo_entero(int v, int l) { NodoAST* n=crear_nodo(NODO_EXPRESION_ENTERO,l); n->datos.entero.valor_entero=v; return n; }
+NodoAST* crear_nodo_id_expresion(char* id, int l) { NodoAST* n=crear_nodo(NODO_EXPRESION_ID,l); n->datos.id_expr.id_nombre=strdup(id); return n; }
+NodoAST* crear_nodo_cadena_literal_expresion(char* v, int l) { NodoAST* n=crear_nodo(NODO_EXPRESION_CADENA_LITERAL,l); n->datos.cadena_literal.valor_cadena=strdup(v); return n; }
+NodoAST* crear_nodo_condicion_binaria(OperadorAST o, NodoAST* i, NodoAST* d, int l) { NodoAST* n=crear_nodo(NODO_CONDICION_BINARIA,l); n->datos.condicion_binaria.operador=o; n->datos.condicion_binaria.izquierda=i; n->datos.condicion_binaria.derecha=d; return n; }
+NodoAST* crear_nodo_declaracion_funcion(char* nom, NodoAST* p, NodoAST* c, int l) { NodoAST* n=crear_nodo(NODO_DECLARACION_FUNCION,l); n->datos.declaracion_funcion.nombre=strdup(nom); n->datos.declaracion_funcion.params=p; n->datos.declaracion_funcion.cuerpo=c; return n; }
+NodoAST* crear_nodo_llamada_funcion(char* nom, NodoAST* a, int l) { NodoAST* n=crear_nodo(NODO_LLAMADA_FUNCION,l); n->datos.llamada_funcion.nombre=strdup(nom); n->datos.llamada_funcion.args=a; return n; }
+NodoAST* crear_nodo_sentencia_retorno(NodoAST* v, int l) { NodoAST* n=crear_nodo(NODO_SENTENCIA_RETORNO,l); n->datos.retorno.valor_retorno=v; return n; }
+NodoAST* crear_nodo_lista_args(char* nom, NodoAST* expr, NodoAST* sig, int l) { NodoAST* n=crear_nodo(NODO_LISTA_ARGS,l); if(nom) n->datos.lista_args.nombre_param=strdup(nom); n->datos.lista_args.expresion_arg=expr; n->datos.lista_args.siguiente=sig; return n; }
+
+/* --- Implementaciones del Generador de Código --- */
 void generar_codigo_expresion(NodoAST* nodo, FILE* f_salida);
 
-// Función principal que recorre el árbol para generar código
+void generar_funciones(NodoAST* nodo, FILE* f_salida) {
+    if (!nodo) return;
+    if (nodo->tipo_nodo == NODO_LISTA_SENTENCIAS) {
+        generar_funciones(nodo->datos.lista_sentencias.siguiente, f_salida);
+        if (nodo->datos.lista_sentencias.sentencia && nodo->datos.lista_sentencias.sentencia->tipo_nodo == NODO_DECLARACION_FUNCION) {
+            generar_codigo(nodo->datos.lista_sentencias.sentencia, f_salida);
+        }
+    }
+}
+void generar_main_body(NodoAST* nodo, FILE* f_salida) {
+    if (!nodo) return;
+    if (nodo->tipo_nodo == NODO_LISTA_SENTENCIAS) {
+        generar_main_body(nodo->datos.lista_sentencias.siguiente, f_salida);
+        if (nodo->datos.lista_sentencias.sentencia && nodo->datos.lista_sentencias.sentencia->tipo_nodo != NODO_DECLARACION_FUNCION) {
+            generar_codigo(nodo->datos.lista_sentencias.sentencia, f_salida);
+        }
+    }
+}
 void generar_codigo(NodoAST* nodo, FILE* f_salida) {
     if (!nodo) return;
 
     switch (nodo->tipo_nodo) {
         case NODO_PROGRAMA:
-            generar_codigo(nodo->datos.programa.lista_sentencias_hijo, f_salida);
+            fprintf(f_salida, "#include <stdio.h>\n");
+            fprintf(f_salida, "#include <string.h>\n\n");
+            generar_funciones(nodo->datos.programa.lista_sentencias_hijo, f_salida);
+            fprintf(f_salida, "\nint main() {\n");
+            generar_main_body(nodo->datos.programa.lista_sentencias_hijo, f_salida);
+            fprintf(f_salida, "    return 0;\n}\n");
             break;
 
         case NODO_LISTA_SENTENCIAS:
-            generar_codigo(nodo->datos.lista_sentencias.sentencia, f_salida);
             generar_codigo(nodo->datos.lista_sentencias.siguiente, f_salida);
+            generar_codigo(nodo->datos.lista_sentencias.sentencia, f_salida);
             break;
-
+            
+        // --- RESTAURAR TODOS LOS CASOS FALTANTES ---
+        case NODO_DECLARACION_FUNCION: {
+            fprintf(f_salida, "int %s(", nodo->datos.declaracion_funcion.nombre);
+            NodoAST* current_param = nodo->datos.declaracion_funcion.params;
+            int count = 0;
+            while (current_param) {
+                if (count > 0) fprintf(f_salida, ", ");
+                fprintf(f_salida, "int %s", current_param->datos.lista_args.nombre_param);
+                count++;
+                current_param = current_param->datos.lista_args.siguiente;
+            }
+            fprintf(f_salida, ") {\n");
+            generar_codigo(nodo->datos.declaracion_funcion.cuerpo, f_salida);
+            fprintf(f_salida, "}\n\n");
+            break;
+        }
+        case NODO_SENTENCIA_RETORNO:
+            fprintf(f_salida, "    return ");
+            generar_codigo_expresion(nodo->datos.retorno.valor_retorno, f_salida);
+            fprintf(f_salida, ";\n");
+            break;
         case NODO_DECLARACION:
-            switch (nodo->datos.declaracion.tipo_dato) {
-                case TIPO_ENTERO:
-                    fprintf(f_salida, "    int %s = 0;\n", nodo->datos.declaracion.id_nombre);
-                    break;
-                case TIPO_CADENA:
-                    fprintf(f_salida, "    char* %s = NULL;\n", nodo->datos.declaracion.id_nombre);
-                    break;
-                default: break;
-            }
+            if (nodo->datos.declaracion.tipo_dato == TIPO_ENTERO) fprintf(f_salida, "    int %s;\n", nodo->datos.declaracion.id_nombre);
+            else if (nodo->datos.declaracion.tipo_dato == TIPO_CADENA) fprintf(f_salida, "    char* %s = NULL;\n", nodo->datos.declaracion.id_nombre);
             break;
-
         case NODO_ASIGNACION:
-            // Para la asignación de cadenas, necesitamos usar strcpy
-            if (nodo->datos.asignacion.tipo_asignacion_esperado == TIPO_CADENA) {
-                fprintf(f_salida, "    %s = ", nodo->datos.asignacion.id_nombre);
-                generar_codigo_expresion(nodo->datos.asignacion.expresion_derecha, f_salida);
-                fprintf(f_salida, ";\n");
+            fprintf(f_salida, "    %s = ", nodo->datos.asignacion.id_nombre);
+            generar_codigo_expresion(nodo->datos.asignacion.expresion_derecha, f_salida);
+            fprintf(f_salida, ";\n");
+            break;
+        case NODO_SALIDA: {
+            TipoDato tipo_expr = deducir_tipo_expr(nodo->datos.salida.expresion_salida);
+            if (tipo_expr == TIPO_CADENA) {
+                fprintf(f_salida, "    printf(\"%%s\\n\", ");
             } else {
-                fprintf(f_salida, "    %s = ", nodo->datos.asignacion.id_nombre);
-                generar_codigo_expresion(nodo->datos.asignacion.expresion_derecha, f_salida);
-                fprintf(f_salida, ";\n");
+                fprintf(f_salida, "    printf(\"%%d\\n\", ");
             }
+            generar_codigo_expresion(nodo->datos.salida.expresion_salida, f_salida);
+            fprintf(f_salida, ");\n");
             break;
-
-        case NODO_SALIDA: // 'imprimir'
-            if (nodo->datos.salida.cadena_literal) {
-                fprintf(f_salida, "    printf(\"%s\\n\");\n", nodo->datos.salida.cadena_literal);
-            } else {
-                int idx = buscar_variable(nodo->datos.salida.id_nombre);
-                if (idx != -1) {
-                    if (tabla[idx].tipo == TIPO_ENTERO) {
-                        fprintf(f_salida, "    printf(\"%%d\\n\", %s);\n", nodo->datos.salida.id_nombre);
-                    } else if (tabla[idx].tipo == TIPO_CADENA) {
-                        fprintf(f_salida, "    printf(\"%%s\\n\", %s);\n", nodo->datos.salida.id_nombre);
-                    }
-                }
-            }
-            break;
-        
-        case NODO_ENTRADA: // 'leer' - Esto es complejo de traducir directamente a C simple
-            fprintf(f_salida, "    {\n");
-            fprintf(f_salida, "        char buffer_lectura[256];\n");
-            fprintf(f_salida, "        fgets(buffer_lectura, 256, stdin);\n");
-            int idx = buscar_variable(nodo->datos.entrada.id_nombre);
-             if (idx != -1) {
-                    if (tabla[idx].tipo == TIPO_ENTERO) {
-                        fprintf(f_salida, "        sscanf(buffer_lectura, \"%%d\", &%s);\n", nodo->datos.entrada.id_nombre);
-                    } else if (tabla[idx].tipo == TIPO_CADENA) {
-                        fprintf(f_salida, "        buffer_lectura[strcspn(buffer_lectura, \"\\n\")] = 0;\n");
-                        fprintf(f_salida, "        %s = strdup(buffer_lectura);\n", nodo->datos.entrada.id_nombre);
-                    }
-                }
-            fprintf(f_salida, "    }\n");
-            break;
-
+        }
         case NODO_IF:
             fprintf(f_salida, "    if (");
             generar_codigo_expresion(nodo->datos.sentencia_if.condicion, f_salida);
@@ -1888,82 +1827,60 @@ void generar_codigo(NodoAST* nodo, FILE* f_salida) {
                 fprintf(f_salida, "    }\n");
             }
             break;
-
         case NODO_WHILE:
-             fprintf(f_salida, "    while (");
-             generar_codigo_expresion(nodo->datos.sentencia_while.condicion, f_salida);
-             fprintf(f_salida, ") {\n");
-             generar_codigo(nodo->datos.sentencia_while.bloque, f_salida);
-             fprintf(f_salida, "    }\n");
-             break;
-        
+            fprintf(f_salida, "    while (");
+            generar_codigo_expresion(nodo->datos.sentencia_while.condicion, f_salida);
+            fprintf(f_salida, ") {\n");
+            generar_codigo(nodo->datos.sentencia_while.bloque, f_salida);
+            fprintf(f_salida, "    }\n");
+            break;
+
+        // Añadir un default para seguridad
         default:
+            // Opcional: imprimir un mensaje si se encuentra un nodo inesperado
+            // fprintf(stderr, "Advertencia: Nodo de tipo %d no manejado en generar_codigo.\n", nodo->tipo_nodo);
             break;
     }
 }
-
-// Función auxiliar para generar el código de las expresiones y condiciones
 void generar_codigo_expresion(NodoAST* nodo, FILE* f_salida) {
     if (!nodo) return;
-
     switch (nodo->tipo_nodo) {
-        case NODO_EXPRESION_ENTERO:
-            fprintf(f_salida, "%d", nodo->datos.entero.valor_entero);
-            break;
-        case NODO_EXPRESION_ID:
-            fprintf(f_salida, "%s", nodo->datos.id_expr.id_nombre);
-            break;
-        case NODO_EXPRESION_CADENA_LITERAL:
-            fprintf(f_salida, "\"%s\"", nodo->datos.cadena_literal.valor_cadena);
-            break;
-
-        case NODO_EXPRESION_BINARIA: {
-            // --- CORRECCIÓN: Usamos 'expresion_binaria' ---
-            char op_char = ' ';
-            switch (nodo->datos.expresion_binaria.operador) {
-                case OP_SUMA: op_char = '+'; break;
-                case OP_RESTA: op_char = '-'; break;
-                case OP_MULT: op_char = '*'; break;
-                case OP_DIV: op_char = '/'; break;
-                default: break; // Los operadores de comparación no deberían estar aquí
+        case NODO_EXPRESION_ENTERO: fprintf(f_salida, "%d", nodo->datos.entero.valor_entero); break;
+        case NODO_EXPRESION_ID: fprintf(f_salida, "%s", nodo->datos.id_expr.id_nombre); break;
+        case NODO_EXPRESION_CADENA_LITERAL: fprintf(f_salida, "\"%s\"", nodo->datos.cadena_literal.valor_cadena); break;
+        case NODO_LLAMADA_FUNCION: {
+            fprintf(f_salida, "%s(", nodo->datos.llamada_funcion.nombre);
+            NodoAST* current_arg = nodo->datos.llamada_funcion.args;
+            int count = 0;
+            while(current_arg) {
+                if (count > 0) fprintf(f_salida, ", ");
+                generar_codigo_expresion(current_arg->datos.lista_args.expresion_arg, f_salida);
+                count++;
+                current_arg = current_arg->datos.lista_args.siguiente;
             }
+            fprintf(f_salida, ")");
+            break;
+        }
+        case NODO_EXPRESION_BINARIA: {
             fprintf(f_salida, "(");
             generar_codigo_expresion(nodo->datos.expresion_binaria.izquierda, f_salida);
-            fprintf(f_salida, " %c ", op_char);
+            char op = ' ';
+            switch(nodo->datos.expresion_binaria.operador){case OP_SUMA:op='+';break; case OP_RESTA:op='-';break; case OP_MULT:op='*';break; case OP_DIV:op='/';break; default:break;}
+            fprintf(f_salida, " %c ", op);
             generar_codigo_expresion(nodo->datos.expresion_binaria.derecha, f_salida);
             fprintf(f_salida, ")");
             break;
         }
-
         case NODO_CONDICION_BINARIA: {
-            // --- CORRECCIÓN: Usamos 'condicion_binaria' ---
-            char* op_str = "";
-            switch (nodo->datos.condicion_binaria.operador) {
-                case OP_IGUAL_IGUAL: op_str = "=="; break;
-                case OP_DIFERENTE:   op_str = "!="; break;
-                case OP_MENOR:       op_str = "<";  break;
-                case OP_MAYOR:       op_str = ">";  break;
-                case OP_MENOR_IGUAL: op_str = "<="; break;
-                case OP_MAYOR_IGUAL: op_str = ">="; break;
-                default: break; // Los operadores aritméticos no deberían estar aquí
-            }
             fprintf(f_salida, "(");
             generar_codigo_expresion(nodo->datos.condicion_binaria.izquierda, f_salida);
-            fprintf(f_salida, " %s ", op_str);
+            char* op = "";
+            switch(nodo->datos.condicion_binaria.operador){case OP_IGUAL_IGUAL:op="==";break; case OP_DIFERENTE:op="!=";break; case OP_MENOR:op="<";break; case OP_MAYOR:op=">";break; case OP_MENOR_IGUAL:op="<=";break; case OP_MAYOR_IGUAL:op=">=";break; default:break;}
+            fprintf(f_salida, " %s ", op);
             generar_codigo_expresion(nodo->datos.condicion_binaria.derecha, f_salida);
             fprintf(f_salida, ")");
             break;
         }
-        default:
-            break;
+        default: break;
     }
-}
-
-void yyerror(const char* s) {
-    fprintf(stderr, "Error de sintaxis en la línea %d: Cerca del texto '%s'. Mensaje: %s\n",
-            yylineno, yytext, s);
-}
-
-int yywrap() {
-    return 1;
 }

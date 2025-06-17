@@ -55,33 +55,36 @@ extern int yydebug;
     YYerror = 256,                 /* error  */
     YYUNDEF = 257,                 /* "invalid token"  */
     ENTERO = 258,                  /* ENTERO  */
-    DECIMAL = 259,                 /* DECIMAL  */
-    CADENA = 260,                  /* CADENA  */
-    PUNTOYCOMA = 261,              /* PUNTOYCOMA  */
-    IGUAL = 262,                   /* IGUAL  */
+    CADENA = 259,                  /* CADENA  */
+    PUNTOYCOMA = 260,              /* PUNTOYCOMA  */
+    IGUAL = 261,                   /* IGUAL  */
+    COMA = 262,                    /* COMA  */
     NENTERO = 263,                 /* NENTERO  */
-    NDECIMAL = 264,                /* NDECIMAL  */
-    CADENA_LITERAL = 265,          /* CADENA_LITERAL  */
-    ID = 266,                      /* ID  */
+    CADENA_LITERAL = 264,          /* CADENA_LITERAL  */
+    ID = 265,                      /* ID  */
+    NDECIMAL = 266,                /* NDECIMAL  */
     SUMA = 267,                    /* SUMA  */
     RESTA = 268,                   /* RESTA  */
     MULT = 269,                    /* MULT  */
     DIV = 270,                     /* DIV  */
     LPAREN = 271,                  /* LPAREN  */
     RPAREN = 272,                  /* RPAREN  */
-    LEER = 273,                    /* LEER  */
-    IMPRIMIR = 274,                /* IMPRIMIR  */
-    IF = 275,                      /* IF  */
-    ELSE = 276,                    /* ELSE  */
-    WHILE = 277,                   /* WHILE  */
-    LLAVE_IZQ = 278,               /* LLAVE_IZQ  */
-    LLAVE_DER = 279,               /* LLAVE_DER  */
-    IGUAL_IGUAL = 280,             /* IGUAL_IGUAL  */
-    DIFERENTE = 281,               /* DIFERENTE  */
-    MENOR = 282,                   /* MENOR  */
-    MAYOR = 283,                   /* MAYOR  */
-    MENOR_IGUAL = 284,             /* MENOR_IGUAL  */
-    MAYOR_IGUAL = 285              /* MAYOR_IGUAL  */
+    IMPRIMIR = 273,                /* IMPRIMIR  */
+    IF = 274,                      /* IF  */
+    ELSE = 275,                    /* ELSE  */
+    WHILE = 276,                   /* WHILE  */
+    FUNCION = 277,                 /* FUNCION  */
+    RETORNAR = 278,                /* RETORNAR  */
+    LLAVE_IZQ = 279,               /* LLAVE_IZQ  */
+    LLAVE_DER = 280,               /* LLAVE_DER  */
+    IGUAL_IGUAL = 281,             /* IGUAL_IGUAL  */
+    DIFERENTE = 282,               /* DIFERENTE  */
+    MENOR = 283,                   /* MENOR  */
+    MAYOR = 284,                   /* MAYOR  */
+    MENOR_IGUAL = 285,             /* MENOR_IGUAL  */
+    MAYOR_IGUAL = 286,             /* MAYOR_IGUAL  */
+    DECIMAL = 287,                 /* DECIMAL  */
+    LEER = 288                     /* LEER  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -90,14 +93,13 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 213 "parser.y"
+#line 96 "parser.y"
 
     char* str;
     int   num_int;
-    float num_float;
     struct NodoAST *nodo_ast;
 
-#line 101 "parser.tab.h"
+#line 103 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
