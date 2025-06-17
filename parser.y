@@ -26,7 +26,8 @@ typedef enum {
     NODO_SALIDA, NODO_IF, NODO_WHILE, NODO_EXPRESION_BINARIA,
     NODO_EXPRESION_ENTERO, NODO_EXPRESION_ID, NODO_EXPRESION_CADENA_LITERAL,
     NODO_CONDICION_BINARIA, NODO_DECLARACION_FUNCION, NODO_LLAMADA_FUNCION,
-    NODO_SENTENCIA_RETORNO, NODO_LISTA_ARGS
+    NODO_SENTENCIA_RETORNO, NODO_LISTA_ARGS,
+    NODO_EXPRESION_LEER
 } TipoNodoAST;
 
 typedef enum {
@@ -82,11 +83,13 @@ NodoAST* crear_nodo_declaracion_funcion(char* nombre, NodoAST* params, NodoAST* 
 NodoAST* crear_nodo_llamada_funcion(char* nombre, NodoAST* args, int linenum);
 NodoAST* crear_nodo_sentencia_retorno(NodoAST* valor, int linenum);
 NodoAST* crear_nodo_lista_args(char* nombre_param, NodoAST* expresion_arg, NodoAST* siguiente, int linenum);
+NodoAST* crear_nodo_leer(int linenum);
 void generar_codigo(NodoAST* nodo, FILE* f_salida);
 
 // Declaración de variables externas que vienen del lexer
 extern int yylineno;
 extern char* yytext;
+extern FILE* yyin;
 
 %}
 
@@ -140,6 +143,7 @@ sentencia:
     | sentencia_while { $$ = $1; }
     | sentencia_retorno { $$ = $1; }
     | declaracion_funcion { $$ = $1; }
+    | expresion PUNTOYCOMA { $$ = $1; }
     ;
 
 declaracion_funcion:
@@ -170,6 +174,7 @@ expresion:
     | expresion DIV expresion   { $$ = crear_nodo_expresion_binaria(OP_DIV, $1, $3, yylineno); }
     | LPAREN expresion RPAREN   { $$ = $2; }
     | llamada_funcion { $$ = $1; }
+    | LEER LPAREN RPAREN { $$ = crear_nodo_leer(yylineno); }
     ;
 
 llamada_funcion:
@@ -247,6 +252,9 @@ NodoAST* crear_nodo_declaracion_funcion(char* nom, NodoAST* p, NodoAST* c, int l
 NodoAST* crear_nodo_llamada_funcion(char* nom, NodoAST* a, int l) { NodoAST* n=crear_nodo(NODO_LLAMADA_FUNCION,l); n->datos.llamada_funcion.nombre=strdup(nom); n->datos.llamada_funcion.args=a; return n; }
 NodoAST* crear_nodo_sentencia_retorno(NodoAST* v, int l) { NodoAST* n=crear_nodo(NODO_SENTENCIA_RETORNO,l); n->datos.retorno.valor_retorno=v; return n; }
 NodoAST* crear_nodo_lista_args(char* nom, NodoAST* expr, NodoAST* sig, int l) { NodoAST* n=crear_nodo(NODO_LISTA_ARGS,l); if(nom) n->datos.lista_args.nombre_param=strdup(nom); n->datos.lista_args.expresion_arg=expr; n->datos.lista_args.siguiente=sig; return n; }
+NodoAST* crear_nodo_leer(int l) {
+    return crear_nodo(NODO_EXPRESION_LEER, l);
+}
 
 /* --- Implementaciones del Generador de Código --- */
 void generar_codigo_expresion(NodoAST* nodo, FILE* f_salida);
@@ -276,6 +284,11 @@ void generar_codigo(NodoAST* nodo, FILE* f_salida) {
         case NODO_PROGRAMA:
             fprintf(f_salida, "#include <stdio.h>\n");
             fprintf(f_salida, "#include <string.h>\n\n");
+            fprintf(f_salida, "int leer_entero() {\n");
+            fprintf(f_salida, "    int valor;\n");
+            fprintf(f_salida, "    scanf(\"%%d\", &valor);\n");
+            fprintf(f_salida, "    return valor;\n");
+            fprintf(f_salida, "}\n\n");
             generar_funciones(nodo->datos.programa.lista_sentencias_hijo, f_salida);
             fprintf(f_salida, "\nint main() {\n");
             generar_main_body(nodo->datos.programa.lista_sentencias_hijo, f_salida);
@@ -347,6 +360,11 @@ void generar_codigo(NodoAST* nodo, FILE* f_salida) {
             generar_codigo(nodo->datos.sentencia_while.bloque, f_salida);
             fprintf(f_salida, "    }\n");
             break;
+        case NODO_LLAMADA_FUNCION:
+            fprintf(f_salida, "    "); // Para la indentación
+            generar_codigo_expresion(nodo, f_salida); // Reutilizamos la lógica que ya genera la llamada
+            fprintf(f_salida, ";\n");                 // Y le añadimos el punto y coma final
+            break;    
 
         // Añadir un default para seguridad
         default:
@@ -361,6 +379,9 @@ void generar_codigo_expresion(NodoAST* nodo, FILE* f_salida) {
         case NODO_EXPRESION_ENTERO: fprintf(f_salida, "%d", nodo->datos.entero.valor_entero); break;
         case NODO_EXPRESION_ID: fprintf(f_salida, "%s", nodo->datos.id_expr.id_nombre); break;
         case NODO_EXPRESION_CADENA_LITERAL: fprintf(f_salida, "\"%s\"", nodo->datos.cadena_literal.valor_cadena); break;
+        case NODO_EXPRESION_LEER:
+            fprintf(f_salida, "leer_entero()");
+            break;
         case NODO_LLAMADA_FUNCION: {
             fprintf(f_salida, "%s(", nodo->datos.llamada_funcion.nombre);
             NodoAST* current_arg = nodo->datos.llamada_funcion.args;

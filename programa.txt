@@ -1,40 +1,49 @@
-// --- Prueba de Recursión: Cálculo de Factorial ---
+// --- Prueba Final: Juego de Adivinar el Número ---
+// Este programa combina todas las características del lenguaje:
+// variables, funciones, E/S, bucles y condicionales.
 
-// Definición de la función factorial
-// n! = n * (n-1)!
-// Caso base: 0! = 1 y 1! = 1
-funcion entero factorial(entero n) {
-    // Caso base: si n es menor que 2, el factorial es 1.
-    if (n < 2) {
-        retornar 1;
-    } 
-    // Caso recursivo: n * factorial(n-1)
-    else {
-        retornar n * factorial(n - 1);
+funcion entero jugar() {
+    entero numero_secreto;
+    numero_secreto = 42; // El número que el usuario debe adivinar
+
+    entero intento;
+    intento = 0; // El número que ingresa el usuario, se inicia en 0 para que el bucle comience
+
+    entero contador_intentos;
+    contador_intentos = 0;
+    
+    imprimir("¡He pensado en un número entre 1 y 100!");
+    imprimir("Intenta adivinar cuál es.");
+
+    // El juego continúa mientras el intento del usuario sea diferente al número secreto
+    while (intento != numero_secreto) {
+        imprimir("Ingresa tu número:");
+        
+        intento = leer(); // El programa se detendrá aquí para esperar al usuario
+        
+        contador_intentos = contador_intentos + 1;
+
+        if (intento < numero_secreto) {
+            imprimir("¡Muy bajo! Intenta de nuevo.");
+        } else {
+            if (intento > numero_secreto) {
+                imprimir("¡Muy alto! Intenta de nuevo.");
+            }
+        }
     }
+
+    // El bucle termina cuando el usuario adivina el número
+    imprimir("¡CORRECTO! Adivinaste el número.");
+    imprimir("Lo lograste en:");
+    imprimir(contador_intentos);
+    imprimir("intentos.");
+    
+    retornar 1; // Retornar 1 para indicar que el juego terminó con éxito
 }
 
-
 // --- Código Principal ---
-imprimir("--- Probando la función factorial recursiva ---");
+imprimir("--- Iniciando Juego Final de Prueba ---");
 
-// Probemos con un número estándar: 5! = 120
-entero num;
-num = 5;
-entero resultado_fact;
-resultado_fact = factorial(num);
+jugar(); // Se llama a la función principal del juego
 
-imprimir("Calculando el factorial de 5...");
-imprimir(resultado_fact);
-
-
-// Probemos con un número un poco más grande: 7! = 5040
-imprimir("Calculando el factorial de 7...");
-resultado_fact = factorial(7);
-imprimir(resultado_fact);
-
-
-// Probemos directamente el caso base: 1! = 1
-imprimir("Calculando el factorial de 1 (caso base)...");
-resultado_fact = factorial(1);
-imprimir(resultado_fact);
+imprimir("--- Juego Terminado. El compilador funciona. ---");
