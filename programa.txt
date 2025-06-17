@@ -1,49 +1,97 @@
-// --- Prueba Final: Juego de Adivinar el Número ---
-// Este programa combina todas las características del lenguaje:
-// variables, funciones, E/S, bucles y condicionales.
+// --- Calculadora de Menú Interactiva y Final ---
+// Lenguaje: BitStream
 
-funcion entero jugar() {
-    entero numero_secreto;
-    numero_secreto = 42; // El número que el usuario debe adivinar
-
-    entero intento;
-    intento = 0; // El número que ingresa el usuario, se inicia en 0 para que el bucle comience
-
-    entero contador_intentos;
-    contador_intentos = 0;
-    
-    imprimir("¡He pensado en un número entre 1 y 100!");
-    imprimir("Intenta adivinar cuál es.");
-
-    // El juego continúa mientras el intento del usuario sea diferente al número secreto
-    while (intento != numero_secreto) {
-        imprimir("Ingresa tu número:");
-        
-        intento = leer(); // El programa se detendrá aquí para esperar al usuario
-        
-        contador_intentos = contador_intentos + 1;
-
-        if (intento < numero_secreto) {
-            imprimir("¡Muy bajo! Intenta de nuevo.");
-        } else {
-            if (intento > numero_secreto) {
-                imprimir("¡Muy alto! Intenta de nuevo.");
-            }
-        }
-    }
-
-    // El bucle termina cuando el usuario adivina el número
-    imprimir("¡CORRECTO! Adivinaste el número.");
-    imprimir("Lo lograste en:");
-    imprimir(contador_intentos);
-    imprimir("intentos.");
-    
-    retornar 1; // Retornar 1 para indicar que el juego terminó con éxito
+// --- Sección de Funciones (sin cambios) ---
+funcion void sumar_y_mostrar(entero a, entero b) {
+    entero suma_resultado;
+    suma_resultado = a + b;
+    imprimir("El resultado de la suma es:");
+    imprimir(suma_resultado);
 }
 
-// --- Código Principal ---
-imprimir("--- Iniciando Juego Final de Prueba ---");
+funcion void restar_y_mostrar(entero a, entero b) {
+    entero resta_resultado;
+    resta_resultado = a - b;
+    imprimir("El resultado de la resta es:");
+    imprimir(resta_resultado);
+}
 
-jugar(); // Se llama a la función principal del juego
+funcion void multiplicar_y_mostrar(entero a, entero b) {
+    entero mult_resultado;
+    mult_resultado = a * b;
+    imprimir("El resultado de la multiplicación es:");
+    imprimir(mult_resultado);
+}
 
-imprimir("--- Juego Terminado. El compilador funciona. ---");
+funcion void dividir_y_mostrar(entero a, entero b) {
+    entero div_resultado;
+    div_resultado = a / b;
+    imprimir("El resultado de la división es:");
+    imprimir(div_resultado);
+}
+
+funcion entero exponente(entero base, entero pot) {
+    entero res;
+    res = 1;
+    entero cont;
+    cont = pot;
+    while (cont > 0) {
+        res = res * base;
+        cont = cont - 1;
+    }
+    retornar res;
+}
+
+// --- CÓDIGO PRINCIPAL CON MENÚ ---
+imprimir("--- BIENVENIDO A LA CALCULADORA BITSTREAM ---");
+
+entero opcion;
+opcion = 0; // Se inicializa en 0 para que el bucle comience
+
+// El menú se repetirá mientras la opción sea diferente de 6 (Salir)
+while (opcion != 6) {
+    imprimir("------------------------------------");
+    imprimir("Por favor, elija una operación:");
+    imprimir("1. Sumar");
+    imprimir("2. Restar");
+    imprimir("3. Multiplicar");
+    imprimir("4. Dividir");
+    imprimir("5. Exponente");
+    imprimir("6. Salir del programa");
+    imprimir("------------------------------------");
+    imprimir("Ingrese su opción:");
+    
+    opcion = leer();
+
+    // Lógica para operaciones básicas que requieren 2 números
+    if (opcion > 0) {
+        if (opcion < 5) {
+            entero n1;
+            entero n2;
+            imprimir("Ingrese el primer número:");
+            n1 = leer();
+            imprimir("Ingrese el segundo número:");
+            n2 = leer();
+            if (opcion == 1) { sumar_y_mostrar(n1, n2); }
+            if (opcion == 2) { restar_y_mostrar(n1, n2); }
+            if (opcion == 3) { multiplicar_y_mostrar(n1, n2); }
+            if (opcion == 4) { dividir_y_mostrar(n1, n2); }
+        }
+    }
+    
+    // Lógica para la potencia
+    if (opcion == 5) {
+        entero base;
+        entero pot;
+        imprimir("Ingrese el número base:");
+        base = leer();
+        imprimir("Ingrese el exponente:");
+        pot = leer();
+        entero resultado_exp;
+        resultado_exp = exponente(base, pot);
+        imprimir("El resultado del exponente es:");
+        imprimir(resultado_exp);
+    }
+}
+
+imprimir("¡Gracias por usar la calculadora BitStream! Saliendo...");

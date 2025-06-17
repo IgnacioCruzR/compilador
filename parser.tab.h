@@ -75,16 +75,17 @@ extern int yydebug;
     WHILE = 276,                   /* WHILE  */
     FUNCION = 277,                 /* FUNCION  */
     RETORNAR = 278,                /* RETORNAR  */
-    LLAVE_IZQ = 279,               /* LLAVE_IZQ  */
-    LLAVE_DER = 280,               /* LLAVE_DER  */
-    IGUAL_IGUAL = 281,             /* IGUAL_IGUAL  */
-    DIFERENTE = 282,               /* DIFERENTE  */
-    MENOR = 283,                   /* MENOR  */
-    MAYOR = 284,                   /* MAYOR  */
-    MENOR_IGUAL = 285,             /* MENOR_IGUAL  */
-    MAYOR_IGUAL = 286,             /* MAYOR_IGUAL  */
-    DECIMAL = 287,                 /* DECIMAL  */
-    LEER = 288                     /* LEER  */
+    VOID = 279,                    /* VOID  */
+    LLAVE_IZQ = 280,               /* LLAVE_IZQ  */
+    LLAVE_DER = 281,               /* LLAVE_DER  */
+    IGUAL_IGUAL = 282,             /* IGUAL_IGUAL  */
+    DIFERENTE = 283,               /* DIFERENTE  */
+    MENOR = 284,                   /* MENOR  */
+    MAYOR = 285,                   /* MAYOR  */
+    MENOR_IGUAL = 286,             /* MENOR_IGUAL  */
+    MAYOR_IGUAL = 287,             /* MAYOR_IGUAL  */
+    DECIMAL = 288,                 /* DECIMAL  */
+    LEER = 289                     /* LEER  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -99,7 +100,7 @@ union YYSTYPE
     int   num_int;
     struct NodoAST *nodo_ast;
 
-#line 103 "parser.tab.h"
+#line 104 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

@@ -11,7 +11,7 @@
 
 /* --- Definiciones de Tipos y Estructuras --- */
 typedef enum {
-    TIPO_ENTERO, TIPO_CADENA, TIPO_INDEFINIDO
+    TIPO_ENTERO, TIPO_CADENA, TIPO_INDEFINIDO, TIPO_VOID
 } TipoDato;
 
 typedef struct {
@@ -51,10 +51,10 @@ typedef struct NodoAST {
         struct { int valor_entero; } entero;
         struct { char *id_nombre; } id_expr;
         struct { char *valor_cadena; } cadena_literal;
-        struct { char* nombre; struct NodoAST* params; struct NodoAST* cuerpo; } declaracion_funcion;
         struct { char* nombre; struct NodoAST* args; } llamada_funcion;
         struct { struct NodoAST* valor_retorno; } retorno;
         struct { char* nombre_param; struct NodoAST* expresion_arg; struct NodoAST* siguiente; } lista_args;
+        struct { char* nombre; struct NodoAST* params; struct NodoAST* cuerpo; TipoDato tipo_retorno; } declaracion_funcion;
     } datos;
 } NodoAST;
 
@@ -79,7 +79,7 @@ NodoAST* crear_nodo_entero(int val, int linenum);
 NodoAST* crear_nodo_id_expresion(char* id, int linenum);
 NodoAST* crear_nodo_cadena_literal_expresion(char* val, int linenum);
 NodoAST* crear_nodo_condicion_binaria(OperadorAST op, NodoAST* izq, NodoAST* der, int linenum);
-NodoAST* crear_nodo_declaracion_funcion(char* nombre, NodoAST* params, NodoAST* cuerpo, int linenum);
+NodoAST* crear_nodo_declaracion_funcion(TipoDato tipo_retorno, char* nombre, NodoAST* params, NodoAST* cuerpo, int linenum);
 NodoAST* crear_nodo_llamada_funcion(char* nombre, NodoAST* args, int linenum);
 NodoAST* crear_nodo_sentencia_retorno(NodoAST* valor, int linenum);
 NodoAST* crear_nodo_lista_args(char* nombre_param, NodoAST* expresion_arg, NodoAST* siguiente, int linenum);
@@ -106,7 +106,7 @@ extern FILE* yyin;
 %token <str> NENTERO CADENA_LITERAL ID NDECIMAL
 %token SUMA RESTA MULT DIV LPAREN RPAREN
 %token IMPRIMIR
-%token IF ELSE WHILE FUNCION RETORNAR
+%token IF ELSE WHILE FUNCION RETORNAR VOID
 %token LLAVE_IZQ LLAVE_DER
 %token IGUAL_IGUAL DIFERENTE MENOR MAYOR MENOR_IGUAL MAYOR_IGUAL
 %token DECIMAL LEER
@@ -115,6 +115,7 @@ extern FILE* yyin;
 %type <nodo_ast> programa lista_sentencias sentencia declaracion asignacion salida sentencia_if expresion condicion sentencia_while declaracion_funcion llamada_funcion sentencia_retorno lista_parametros lista_argumentos
 
 %start programa
+%type <num_int> tipo_retorno
 %left SUMA RESTA
 %left MULT DIV
 
@@ -145,10 +146,14 @@ sentencia:
     | declaracion_funcion { $$ = $1; }
     | expresion PUNTOYCOMA { $$ = $1; }
     ;
+tipo_retorno:
+    ENTERO { $$ = TIPO_ENTERO; }
+    | VOID   { $$ = TIPO_VOID; }
+    ;    
 
 declaracion_funcion:
-    FUNCION ENTERO ID LPAREN lista_parametros RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER {
-        $$ = crear_nodo_declaracion_funcion($3, $5, $8, yylineno);
+    FUNCION tipo_retorno ID LPAREN lista_parametros RPAREN LLAVE_IZQ lista_sentencias LLAVE_DER {
+        $$ = crear_nodo_declaracion_funcion($2, $3, $5, $8, yylineno);
         free($3);
     }
     ;
@@ -248,14 +253,20 @@ NodoAST* crear_nodo_entero(int v, int l) { NodoAST* n=crear_nodo(NODO_EXPRESION_
 NodoAST* crear_nodo_id_expresion(char* id, int l) { NodoAST* n=crear_nodo(NODO_EXPRESION_ID,l); n->datos.id_expr.id_nombre=strdup(id); return n; }
 NodoAST* crear_nodo_cadena_literal_expresion(char* v, int l) { NodoAST* n=crear_nodo(NODO_EXPRESION_CADENA_LITERAL,l); n->datos.cadena_literal.valor_cadena=strdup(v); return n; }
 NodoAST* crear_nodo_condicion_binaria(OperadorAST o, NodoAST* i, NodoAST* d, int l) { NodoAST* n=crear_nodo(NODO_CONDICION_BINARIA,l); n->datos.condicion_binaria.operador=o; n->datos.condicion_binaria.izquierda=i; n->datos.condicion_binaria.derecha=d; return n; }
-NodoAST* crear_nodo_declaracion_funcion(char* nom, NodoAST* p, NodoAST* c, int l) { NodoAST* n=crear_nodo(NODO_DECLARACION_FUNCION,l); n->datos.declaracion_funcion.nombre=strdup(nom); n->datos.declaracion_funcion.params=p; n->datos.declaracion_funcion.cuerpo=c; return n; }
 NodoAST* crear_nodo_llamada_funcion(char* nom, NodoAST* a, int l) { NodoAST* n=crear_nodo(NODO_LLAMADA_FUNCION,l); n->datos.llamada_funcion.nombre=strdup(nom); n->datos.llamada_funcion.args=a; return n; }
 NodoAST* crear_nodo_sentencia_retorno(NodoAST* v, int l) { NodoAST* n=crear_nodo(NODO_SENTENCIA_RETORNO,l); n->datos.retorno.valor_retorno=v; return n; }
 NodoAST* crear_nodo_lista_args(char* nom, NodoAST* expr, NodoAST* sig, int l) { NodoAST* n=crear_nodo(NODO_LISTA_ARGS,l); if(nom) n->datos.lista_args.nombre_param=strdup(nom); n->datos.lista_args.expresion_arg=expr; n->datos.lista_args.siguiente=sig; return n; }
 NodoAST* crear_nodo_leer(int l) {
     return crear_nodo(NODO_EXPRESION_LEER, l);
 }
-
+NodoAST* crear_nodo_declaracion_funcion(TipoDato t, char* nom, NodoAST* p, NodoAST* c, int l) {
+    NodoAST* n = crear_nodo(NODO_DECLARACION_FUNCION, l);
+    n->datos.declaracion_funcion.tipo_retorno = t;
+    n->datos.declaracion_funcion.nombre = strdup(nom);
+    n->datos.declaracion_funcion.params = p;
+    n->datos.declaracion_funcion.cuerpo = c;
+    return n;
+}
 /* --- Implementaciones del Generador de Código --- */
 void generar_codigo_expresion(NodoAST* nodo, FILE* f_salida);
 
@@ -302,7 +313,11 @@ void generar_codigo(NodoAST* nodo, FILE* f_salida) {
             
         // --- RESTAURAR TODOS LOS CASOS FALTANTES ---
         case NODO_DECLARACION_FUNCION: {
-            fprintf(f_salida, "int %s(", nodo->datos.declaracion_funcion.nombre);
+             if (nodo->datos.declaracion_funcion.tipo_retorno == TIPO_VOID) {
+                fprintf(f_salida, "void %s(", nodo->datos.declaracion_funcion.nombre);
+            } else {
+                fprintf(f_salida, "int %s(", nodo->datos.declaracion_funcion.nombre);
+           }
             NodoAST* current_param = nodo->datos.declaracion_funcion.params;
             int count = 0;
             while (current_param) {

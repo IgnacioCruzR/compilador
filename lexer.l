@@ -17,6 +17,7 @@
 "imprimir" return IMPRIMIR;
 "funcion" return FUNCION;
 "retornar" return RETORNAR;
+"void" return VOID;
 "==" return IGUAL_IGUAL;
 "!=" return DIFERENTE;
 "<=" return MENOR_IGUAL;
